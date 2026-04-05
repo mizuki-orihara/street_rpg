@@ -45,6 +45,7 @@ function player_new(array $stats): array {
         'boss_progress'   => 0,      // ボス解放ポイント（10以上で解放、ボス討伐でリセット）
         'boss_ready'      => false,  // ボス挑戦可能フラグ
         'reward_bonus'   => 0.0,  // 戦闘中の報酬倍率累計（戦闘開始時リセット）
+        'civilian_dodge'  => [],     // ランク0MOB種別ごとの回避カウント ['jk'=>0, 'cvg'=>0, ...]
     ];
 }
 

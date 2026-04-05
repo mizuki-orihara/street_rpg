@@ -318,20 +318,40 @@ function fight_action(string $action): array {
 // ============================================================
 //  JK専用処理
 // ============================================================
+// civilian_dodge 閾値（全種共通）
+const CIVILIAN_DODGE_THRESHOLD = 5;
+
 function _fight_action_jk(array $p, array $mob, string $action): array {
-    $lines = [];
+    $lines  = [];
+    $mob_id = $mob['id'] ?? 'jk';   // mob_encounter()で付与したid
+
+    // civilian_dodge 初期化ガード
+    if (!isset($p['civilian_dodge']) || !is_array($p['civilian_dodge'])) {
+        $p['civilian_dodge'] = [];
+    }
+    if (!isset($p['civilian_dodge'][$mob_id])) {
+        $p['civilian_dodge'][$mob_id] = 0;
+    }
 
     switch ($action) {
         case 'attack':
         case 'throw':
         case 'skill':
-            // 攻撃系 → 罰金
+            // 攻撃系 → 罰金 + そのidのカウントリセット
             $fine = $p['stage'] * 200;
             $lines[] = "> っ……なにしてんだ！";
             $lines[] = "> 通報された。警察が来た。";
             $lines[] = "> 罰金 ¥{$fine}。";
             $p['money'] = max(0, $p['money'] - $fine);
             if ($p['money'] === 0) $lines[] = "> 所持金が底をついた。";
+
+            // カウントリセット
+            $prev = $p['civilian_dodge'][$mob_id];
+            $p['civilian_dodge'][$mob_id] = 0;
+            if ($prev > 0) {
+                $lines[] = "> [{$mob['name']}] への信頼が消えた。(回避 {$prev} → 0)";
+            }
+
             $p['battle']      = null;
             $p['reward_mult'] = 1.0;
             $p = advance_day($p);
@@ -339,7 +359,15 @@ function _fight_action_jk(array $p, array $mob, string $action): array {
             return ['lines' => $lines, 'result' => 'jk_penalty', 'player' => $p];
 
         case 'run':
+            // 逃走 → 回避カウント加算 → 閾値チェック
+            $p['civilian_dodge'][$mob_id]++;
+            $count = $p['civilian_dodge'][$mob_id];
             $lines[] = "> 足早にその場を離れた。";
+            $lines[] = "> [{$mob['name']}] 回避: {$count}/" . CIVILIAN_DODGE_THRESHOLD;
+
+            [$p, $reward_lines] = _civilian_dodge_check($p, $mob_id, $mob['name']);
+            $lines = array_merge($lines, $reward_lines);
+
             $p['battle']      = null;
             $p['reward_mult'] = 1.0;
             $p = advance_day($p);
@@ -347,13 +375,23 @@ function _fight_action_jk(array $p, array $mob, string $action): array {
             return ['lines' => $lines, 'result' => 'escape', 'player' => $p];
 
         case 'defend':
-            $lines[] = "> ……なにもしない方がいい。";
+            // 防御（様子見）→ 回避カウント加算
+            $p['civilian_dodge'][$mob_id]++;
+            $count = $p['civilian_dodge'][$mob_id];
+            $lines[] = "> ……関わらない方がいい。";
+            $lines[] = "> [{$mob['name']}] 回避: {$count}/" . CIVILIAN_DODGE_THRESHOLD;
+
+            [$p, $reward_lines] = _civilian_dodge_check($p, $mob_id, $mob['name']);
+            $lines = array_merge($lines, $reward_lines);
+
             player_set($p);
+            // 防御はその場でターン終了せず継続（まだ画面にいる）
             return ['lines' => $lines, 'result' => 'continue', 'player' => $p, 'mob' => $mob];
 
         case 'item':
-            if (empty($p['items'])) { $lines[] = "> アイテムがない。"; }
-            else {
+            if (empty($p['items'])) {
+                $lines[] = "> アイテムがない。";
+            } else {
                 $item = array_shift($p['items']);
                 [$p, $item_lines] = _use_item($p, $item);
                 $lines = array_merge($lines, $item_lines);
@@ -364,6 +402,44 @@ function _fight_action_jk(array $p, array $mob, string $action): array {
 
     player_set($p);
     return ['lines' => $lines, 'result' => 'continue', 'player' => $p, 'mob' => $mob];
+}
+
+/**
+ * civilian_dodge 閾値チェック＆報酬付与
+ * 閾値に達したらアイテムを1個付与してカウントリセット
+ * @return array [$p, $lines]
+ */
+function _civilian_dodge_check(array $p, string $mob_id, string $mob_name): array {
+    $lines = [];
+    if ($p['civilian_dodge'][$mob_id] < CIVILIAN_DODGE_THRESHOLD) {
+        return [$p, $lines];
+    }
+
+    // 閾値到達 → ランダム報酬（護符 or スモークボム）
+    $rewards = [
+        ['id' => 'gold_fever', 'name' => '金運の護符',   'effect' => 'gold_fever', 'value' => 5],
+        ['id' => 'smoke',      'name' => 'スモークボム',  'effect' => 'escape',     'value' => 0],
+    ];
+    $reward = $rewards[rng(0, 1)];
+
+    $lines[] = "> ────────────────────";
+    $lines[] = "> 【{$mob_name}】との縁が繋がった。";
+
+    if (count($p['items']) < 3) {
+        $p['items'][] = $reward;
+        $lines[] = "> [{$reward['name']}] を受け取った！";
+    } else {
+        // アイテム満杯なら金で代替（適当な換算額）
+        $cash = rng(150, 300);
+        $p['money'] += $cash;
+        $lines[] = "> アイテムが満杯のため ¥{$cash} を受け取った。";
+    }
+
+    // カウントリセット
+    $p['civilian_dodge'][$mob_id] = 0;
+    $lines[] = "> ────────────────────";
+
+    return [$p, $lines];
 }
 
 // ============================================================

@@ -4,7 +4,6 @@
 //  武器/アイテムは data/*.csv から読み込む
 // ============================================================
 
-
 define('GAME_TITLE', 'STREET DOGS');
 define('SESSION_KEY', 'sd_player');
 define('DATA_DIR', __DIR__ . '/data');
@@ -208,12 +207,13 @@ function mob_encounter(int $stage): array {
     $st    = STAGES[$stage];
     $ranks = STAGE_MOB_RANKS[$stage];
 
-    // JK出現判定: 15%の確率でJKをエンカウント
+    // ランク0出現判定: 15%の確率でランク0をエンカウント（複数種からランダム選択）
     $jk_pool = array_values(array_filter(mobs_all(), fn($m) => $m['rank'] === 0));
     if (!empty($jk_pool) && rng(1, 100) <= 15) {
-        $template = $jk_pool[0];
+        $template = $jk_pool[rng(0, count($jk_pool) - 1)];
         $hp = max(1, rng(8, 15));
         return [
+            'id'       => $template['id'],
             'name'     => $template['name'],
             'rank'     => 0,
             'img'      => $template['img'],
@@ -246,6 +246,7 @@ function mob_encounter(int $stage): array {
     $hp = $spread($base_hp);
     $rank = $template['rank'];
     return [
+        'id'       => $template['id'],
         'name'     => $template['name'],
         'rank'     => $rank,
         'img'      => $template['img'],
