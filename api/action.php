@@ -136,6 +136,19 @@ switch ($action) {
         if (!$p) resp(['error' => 'no session']);
         resp(armor_buy((int)($input['idx'] ?? 0)));
 
+    // ---- プレイヤー状態の直接更新（クリア時名前登録等）----
+    case 'set_player':
+        $p = player_get();
+        if (!$p) resp(['error' => 'no session']);
+        $new = $input['player'] ?? null;
+        if (!$new) resp(['error' => 'no player data']);
+        // 安全なフィールドのみ上書き（ステータス系は触らせない）
+        foreach (['name', '_cleared', '_ng_plus'] as $key) {
+            if (isset($new[$key])) $p[$key] = $new[$key];
+        }
+        player_set($p);
+        resp(['ok' => true, 'player' => $p]);
+
     // ---- リセット ----
     case 'reset':
         player_clear();

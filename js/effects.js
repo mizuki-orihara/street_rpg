@@ -4,50 +4,64 @@
 
 const API = 'api/action.php';
 
+const SAVE_API = 'api/save.php';
+
 let G = {
     screen: 'title',
     player: null,
-    mob:    null,
+    mob: null,
     pendingStats: null,
     rerolls: 0,
     innCost: 0,
     weaponStock: [],
     itemStock: [],
+    // セーブ関連
+    activeSlot: null,   // 現在プレイ中のstoryスロット ('story_1'等)
+    storySlots: [],     // 起動時に取得したスロット概要
+    uuid: null,
 };
 
 // ============================================================
-//  ログ出力
+//  ログ出力 — textarea + canvas CRTオーバーレイ方式
 // ============================================================
-const logArea    = () => document.getElementById('log-area');
-const logContent = () => document.getElementById('log-content');
+
+// ---- 設定 ----
+const LOG_MAX_LINES = 40;   // 20 / 40 / 60 で切替可（将来: 設定画面から変更）
+
+const logArea = () => document.getElementById('log-area');
+const logTextarea = () => document.getElementById('log-textarea');
 
 let typeQueue = [];
 let typing = false;
+let _logLines = [];   // 現在のログ行を配列で管理
 
 function print(text, cls = 'prompt', delay = 0) {
-    typeQueue.push({ text, cls, delay });
+    typeQueue.push({ text, delay });
     if (!typing) drainQueue();
 }
 
-function printBlank() { print('', 'blank'); }
+function printBlank() { print(''); }
 
 async function drainQueue() {
     typing = true;
     while (typeQueue.length > 0) {
-        const { text, cls, delay } = typeQueue.shift();
-        await printLine(text, cls, delay);
+        const { text, delay } = typeQueue.shift();
+        await printLine(text, delay);
     }
     typing = false;
     scrollBottom();
 }
 
-function printLine(text, cls, delay) {
+function printLine(text, delay) {
     return new Promise(resolve => {
         setTimeout(() => {
-            const el = document.createElement('span');
-            el.className = 'line ' + cls;
-            el.textContent = text;
-            logContent().appendChild(el);
+            _logLines.push(text);
+            // 上限超えたら古い行を削除
+            if (_logLines.length > LOG_MAX_LINES) {
+                _logLines = _logLines.slice(_logLines.length - LOG_MAX_LINES);
+            }
+            logTextarea().value = _logLines.join('
+');
             scrollBottom();
             resolve();
         }, delay);
@@ -59,12 +73,13 @@ function printLines(lines, cls = 'prompt', baseDelay = 0, step = 40) {
 }
 
 function scrollBottom() {
-    const la = logArea();
-    la.scrollTop = la.scrollHeight;
+    const ta = logTextarea();
+    ta.scrollTop = ta.scrollHeight;
 }
 
 function clearLog() {
-    logContent().innerHTML = '';
+    _logLines = [];
+    logTextarea().value = '';
     typeQueue = [];
     typing = false;
     clearScene();
@@ -76,21 +91,21 @@ function clearLog() {
 
 // 背景画像テーブル（素材未配置時は空文字のまま → 非表示）
 const SCENE_BG = {
-    map_1:      'img/bg/alley.png',
-    map_2:      'img/bg/downtown.png',
-    map_3:      'img/bg/docks.png',
-    fight_1:    'img/bg/alley_fight.png',
-    fight_2:    'img/bg/downtown_fight.png',
-    fight_3:    'img/bg/docks_fight.png',
-    boss_1:     'img/bg/alley_boss.png',
-    boss_2:     'img/bg/downtown_boss.png',
-    boss_3:     'img/bg/docks_boss.png',
+    map_1: 'img/bg/alley.png',
+    map_2: 'img/bg/downtown.png',
+    map_3: 'img/bg/docks.png',
+    fight_1: 'img/bg/alley_fight.png',
+    fight_2: 'img/bg/downtown_fight.png',
+    fight_3: 'img/bg/docks_fight.png',
+    boss_1: 'img/bg/alley_boss.png',
+    boss_2: 'img/bg/downtown_boss.png',
+    boss_3: 'img/bg/docks_boss.png',
     restaurant: 'img/bg/restaurant.png',   // 宿→飲食店
-    dojo:       'img/bg/dojo.png',
-    weapon:     'img/bg/weapon_shop.png',
-    armor:      'img/bg/armor_shop.png',
-    item:       'img/bg/item_shop.png',
-    informer:   'img/bg/informer.png',     // 情報屋イベント
+    dojo: 'img/bg/dojo.png',
+    weapon: 'img/bg/weapon_shop.png',
+    armor: 'img/bg/armor_shop.png',
+    item: 'img/bg/item_shop.png',
+    informer: 'img/bg/informer.png',     // 情報屋イベント
 };
 
 // ボス画像テーブル
@@ -102,17 +117,17 @@ const BOSS_IMG = {
 
 // プレイヤー画像
 const PLAYER_IMG = {
-    normal:  'img/player/normal.png',
+    normal: 'img/player/normal.png',
     damaged: 'img/player/damaged.png',
 };
 
 // NPCプール定義（入店ごとにランダム選択）
 const NPC_POOL = {
     restaurant: ['img/npc/ff_staff_a.png', 'img/npc/ff_staff_b.png', 'img/npc/ff_staff_c.png'],
-    shop:       ['img/npc/shop_a.png',     'img/npc/shop_b.png',     'img/npc/shop_c.png'],
-    item:       ['img/npc/item_staff_a.png', 'img/npc/item_staff_b.png'],
-    dojo:       ['img/npc/master.png'],
-    informer:   ['img/npc/informer.png'],
+    shop: ['img/npc/shop_a.png', 'img/npc/shop_b.png', 'img/npc/shop_c.png'],
+    item: ['img/npc/item_staff_a.png', 'img/npc/item_staff_b.png'],
+    dojo: ['img/npc/master.png'],
+    informer: ['img/npc/informer.png'],
 };
 
 /** NPCプールからランダム1枚を返す */
@@ -155,8 +170,8 @@ function clearLayer(id) {
  */
 function setScene({ bgKey = '', mob = '', player = '' } = {}) {
     const bgSrc = SCENE_BG[bgKey] || '';
-    setLayer('scene-bg',     bgSrc);
-    setLayer('scene-mob',    mob);
+    setLayer('scene-bg', bgSrc);
+    setLayer('scene-mob', mob);
     setLayer('scene-player', player);
     // 画像が1枚でもあればlog-areaにhas-sceneを付与
     if (bgSrc || mob || player) {
@@ -198,24 +213,24 @@ function disableCommands() {
 function updateHUD(p) {
     if (!p) return;
     G.player = p;
-    const hpPct  = Math.round(p.hp / p.max_hp * 100);
-    const hpCls  = hpPct <= 25 ? 'danger' : hpPct <= 50 ? 'warn' : '';
+    const hpPct = Math.round(p.hp / p.max_hp * 100);
+    const hpCls = hpPct <= 25 ? 'danger' : hpPct <= 50 ? 'warn' : '';
     const fevDays = p.gold_fever_days || 0;
-    const fevCls  = fevDays > 0 ? 'active' : '';
+    const fevCls = fevDays > 0 ? 'active' : '';
     const armorBonus = p.armor ? p.armor.def_bonus : 0;
-    const effDef     = p.def + armorBonus + (p.temp_def || 0);
-    const armorName  = p.armor ? p.armor.name : 'なし';
+    const effDef = p.def + armorBonus + (p.temp_def || 0);
+    const armorName = p.armor ? p.armor.name : 'なし';
     document.getElementById('status-bar').innerHTML = `
       <div class="status-row">
         <span class="stat-item ${hpCls}">HP:<span>${p.hp}/${p.max_hp}</span></span>
         <span class="stat-item">MP:<span>${p.mp}/${p.max_mp}</span></span>
         <span class="stat-item">¥<span>${p.money.toLocaleString()}</span></span>
         <span class="stat-item">DAY:<span>${p.day || 1}</span></span>
-        <span class="stat-item ${fevCls}">護符:<span>${fevDays > 0 ? '残'+fevDays+'日' : 'OFF'}</span></span>
+        <span class="stat-item ${fevCls}">護符:<span>${fevDays > 0 ? '残' + fevDays + '日' : 'OFF'}</span></span>
       </div>
       <div class="status-row">
         <span class="stat-item">ATK:<span>${p.atk}</span></span>
-        <span class="stat-item">DEF:<span>${effDef}${armorBonus > 0 ? '(+'+armorBonus+')' : ''}</span></span>
+        <span class="stat-item">DEF:<span>${effDef}${armorBonus > 0 ? '(+' + armorBonus + ')' : ''}</span></span>
         <span class="stat-item">AGI:<span>${p.agi}</span></span>
         <span class="stat-item">LUK:<span>${p.luk}</span></span>
         <span class="stat-item">STG:<span>${p.stage}</span></span>
@@ -243,13 +258,35 @@ async function api(action, extra = {}) {
     }
 }
 
+async function saveApi(action, extra = {}) {
+    try {
+        const res = await fetch(SAVE_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, ...extra }),
+        });
+        return await res.json();
+    } catch (e) {
+        console.warn('[SAVE] 通信失敗:', e.message);
+        return null;
+    }
+}
+
+/** マップ遷移時に自動セーブ（非同期・エラーは握りつぶす） */
+async function autoSave() {
+    if (!G.activeSlot) return;
+    await saveApi('save', { slot: G.activeSlot });
+}
+
 // ============================================================
 //  タイトル
 // ============================================================
-function showTitle() {
+async function showTitle() {
     G.screen = 'title';
+    G.activeSlot = null;
     clearLog();
     document.getElementById('status-bar').innerHTML = '';
+
     const lines = [
         '╔══════════════════════════════════════╗',
         '║                                      ║',
@@ -264,11 +301,147 @@ function showTitle() {
         '',
     ];
     lines.forEach((l, i) => print(l, i < 7 ? 'header' : 'info', i * 50));
+
+    // セーブデータ取得
+    const saveData = await saveApi('init');
+    if (saveData?.ok) {
+        G.uuid = saveData.uuid;
+        G.storySlots = saveData.story;
+    }
+
+    const hasSave = G.storySlots.some(s => !s.empty);
+    const clearedSlots = G.storySlots.filter(s => !s.empty && s.cleared);
+
     setTimeout(() => {
-        setCommands('コマンドを入力してください', [
-            { label: '[ NEW GAME ]', action: startChargen },
-        ]);
+        const btns = [
+            { label: '[ NEW GAME ]', action: () => startNewGame(false) },
+        ];
+        if (clearedSlots.length > 0) {
+            btns.push({ label: '[ NG+ ]', action: startNgPlus, cls: 'amber' });
+        }
+        if (hasSave) {
+            btns.push({ label: '[ CONTINUE ]', action: showContinueSlots });
+        }
+        setCommands('コマンドを入力してください', btns);
     }, lines.length * 50 + 200);
+}
+
+// ============================================================
+//  スロット選択（NEW GAME / NG+共通）
+// ============================================================
+async function startNewGame(isNgPlus, srcSlot = null) {
+    // 空きスロットを自動選択、全埋まりなら選択UIへ
+    const saveData = await saveApi('init');
+    if (!saveData?.ok) return;
+    G.storySlots = saveData.story;
+
+    const autoSlot = saveData.auto_slot;
+    if (autoSlot) {
+        // 空きあり → スキップして直接開始
+        G.activeSlot = autoSlot;
+        if (isNgPlus && srcSlot) {
+            await doNgPlus(srcSlot, autoSlot);
+        } else {
+            startChargen();
+        }
+    } else {
+        // 全埋まり → 上書き先を選ばせる
+        showSlotSelect(isNgPlus, srcSlot);
+    }
+}
+
+function showSlotSelect(isNgPlus, srcSlot) {
+    clearLog();
+    print('> セーブスロットを選択してください。', 'cyan');
+    print('> ※ 選択したスロットに上書きされます。', 'warn');
+    printBlank();
+    G.storySlots.forEach(s => {
+        if (s.empty) {
+            print(`> ${s.slot.toUpperCase()}  [空]`, 'dim');
+        } else {
+            print(`> ${s.slot.toUpperCase()}  ST${s.stage} DAY${s.day}  ¥${s.money.toLocaleString()}  ${s.updated_at ? s.updated_at.slice(0, 10) : ''}${s.ng_plus > 0 ? '  NG+' + s.ng_plus : ''}`, 'prompt');
+        }
+    });
+    printBlank();
+    const btns = G.storySlots.map(s => ({
+        label: s.slot.replace('story_', 'SLOT '),
+        cls: s.empty ? '' : 'amber',
+        action: async () => {
+            G.activeSlot = s.slot;
+            if (isNgPlus && srcSlot) {
+                await doNgPlus(srcSlot, s.slot);
+            } else {
+                startChargen();
+            }
+        },
+    }));
+    btns.push({ label: '[戻る]', action: showTitle });
+    setCommands('どのスロットに保存する？', btns);
+}
+
+// ============================================================
+//  強くてニューゲーム
+// ============================================================
+function startNgPlus() {
+    clearLog();
+    print('> 引き継ぎ元を選択してください。', 'cyan');
+    print('> クリア済みスロットのみ選択可能。', 'info');
+    printBlank();
+    const cleared = G.storySlots.filter(s => !s.empty && s.cleared);
+    cleared.forEach(s => {
+        print(`> ${s.slot.toUpperCase()}  ST${s.stage} DAY${s.day}  NG+${s.ng_plus || 0}`, 'prompt');
+    });
+    printBlank();
+    const btns = cleared.map(s => ({
+        label: s.slot.replace('story_', 'SLOT ') + (s.ng_plus > 0 ? ' NG+' + s.ng_plus : ''),
+        cls: 'amber',
+        action: () => startNewGame(true, s.slot),
+    }));
+    btns.push({ label: '[戻る]', action: showTitle });
+    setCommands('引き継ぎ元', btns);
+}
+
+async function doNgPlus(srcSlot, destSlot) {
+    disableCommands();
+    const data = await saveApi('ng_plus', { src_slot: srcSlot, dest_slot: destSlot });
+    if (!data?.ok) {
+        print('> [ERROR] 引き継ぎ失敗: ' + (data?.error || ''), 'bad');
+        return;
+    }
+    // PHPセッションへの展開はsave.php側で完了済み。HUDだけ更新する。
+    updateHUD(data.player);
+    print('> 引き継ぎ完了。新たな戦いが始まる。', 'good');
+    printBlank();
+    setTimeout(() => showMap(), 800);
+}
+
+// ============================================================
+//  続きから（ロード）
+// ============================================================
+function showContinueSlots() {
+    clearLog();
+    print('> セーブデータを選択してください。', 'cyan');
+    printBlank();
+    const filled = G.storySlots.filter(s => !s.empty);
+    filled.forEach(s => {
+        print(`> ${s.slot.toUpperCase()}  ST${s.stage} DAY${s.day}  HP:${s.hp}/${s.max_hp}  ¥${s.money.toLocaleString()}`, 'prompt');
+        print(`>   保存日時: ${s.updated_at ? s.updated_at.slice(0, 16).replace('T', ' ') : '不明'}${s.ng_plus > 0 ? '  NG+' + s.ng_plus : ''}`, 'dim');
+    });
+    printBlank();
+    const btns = filled.map(s => ({
+        label: s.slot.replace('story_', 'SLOT '),
+        action: async () => {
+            disableCommands();
+            const data = await saveApi('load', { slot: s.slot });
+            if (!data?.ok) { print('> ロード失敗。', 'bad'); return; }
+            G.activeSlot = s.slot;
+            updateHUD(data.player);
+            print('> データをロードした。', 'good');
+            setTimeout(() => showMap(), 600);
+        },
+    }));
+    btns.push({ label: '[戻る]', action: showTitle });
+    setCommands('どのデータをロードする？', btns);
 }
 
 // ============================================================
@@ -294,25 +467,25 @@ async function doRoll() {
 
     const s = data.stats;
     const entries = [
-        ['hp',    s.hp,    100, 250],
-        ['mp',    s.mp,    10,  120],
-        ['atk',   s.atk,   16,  32],
-        ['def',   s.def,   16,  32],
-        ['agi',   s.agi,   16,  32],
-        ['luk',   s.luk,   16,  32],
+        ['hp', s.hp, 100, 250],
+        ['mp', s.mp, 10, 120],
+        ['atk', s.atk, 16, 32],
+        ['def', s.def, 16, 32],
+        ['agi', s.agi, 16, 32],
+        ['luk', s.luk, 16, 32],
         ['money', s.money, 100, 2500],
     ];
 
     print(`> ──── ROLL #${G.rerolls} ────`, 'dim');
     entries.forEach(([key, val, min, max], i) => {
-        const filled   = Math.round((val - min) / (max - min) * 20);
-        const bar      = '█'.repeat(filled) + '░'.repeat(20 - filled);
-        const label    = key.toUpperCase().padEnd(6);
-        const dispVal  = key === 'money' ? ('¥' + val.toLocaleString()).padStart(8) : String(val).padStart(4);
+        const filled = Math.round((val - min) / (max - min) * 20);
+        const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
+        const label = key.toUpperCase().padEnd(6);
+        const dispVal = key === 'money' ? ('¥' + val.toLocaleString()).padStart(8) : String(val).padStart(4);
         print(`> ${label} ${dispVal}  [${bar}]`, 'prompt', i * 40);
     });
 
-    const ratingColor = { S:'bad', A:'warn', B:'good', C:'prompt', D:'dim' };
+    const ratingColor = { S: 'bad', A: 'warn', B: 'good', C: 'prompt', D: 'dim' };
     print(`> `, 'blank', entries.length * 40 + 20);
     print(`> SCORE: ${data.score}  RATING: [ ${data.rating} ]`, ratingColor[data.rating] || 'prompt', entries.length * 40 + 60);
     print(`> ${data.comment}`, 'info', entries.length * 40 + 100);
@@ -321,7 +494,7 @@ async function doRoll() {
     setTimeout(() => {
         setCommands('このキャラで始めるか？', [
             { label: '[ CONFIRM ]', action: confirmChar, cls: 'amber' },
-            { label: '[ REROLL ]',  action: doRoll },
+            { label: '[ REROLL ]', action: doRoll },
         ]);
     }, entries.length * 40 + 300);
 }
@@ -334,6 +507,8 @@ async function confirmChar() {
     print('> キャラクター確定。', 'good');
     print('> 路地裏へ足を踏み入れた。', 'info', 80);
     printBlank();
+    // 新規作成直後に初回セーブ
+    await autoSave();
     setTimeout(() => showMap(), 600);
 }
 
@@ -342,6 +517,7 @@ async function confirmChar() {
 // ============================================================
 async function showMap() {
     G.screen = 'map';
+    await autoSave();   // マップ遷移 = セーブ確定
     const data = await api('map');
     if (!data) return;
     updateHUD(data.player);
@@ -366,17 +542,19 @@ async function showMap() {
     printBlank();
 
     setTimeout(() => {
-        const bossNode  = data.nodes.find(n => n.id === 'boss');
+        const bossNode = data.nodes.find(n => n.id === 'boss');
         const bossReady = bossNode && bossNode.boss_ready;
         setCommands('どこへ向かう？', [
-            { label: '[FIGHT]',  action: startFight },
-            { label: '[EAT]',    action: startInn },
-            { label: '[TRAIN]',  action: startDojo },
+            { label: '[FIGHT]', action: startFight },
+            { label: '[EAT]', action: startInn },
+            { label: '[TRAIN]', action: startDojo },
             { label: '[WEAPON]', action: startWeaponShop },
-            { label: '[ARMOR]',  action: startArmorShop },
-            { label: '[ITEM]',   action: startItemShop },
-            { label: bossReady ? '[BOSS]' : '[BOSS 🔒]',
-              action: startBoss, cls: 'danger', disabled: !bossReady },
+            { label: '[ARMOR]', action: startArmorShop },
+            { label: '[ITEM]', action: startItemShop },
+            {
+                label: bossReady ? '[BOSS]' : '[BOSS 🔒]',
+                action: startBoss, cls: 'danger', disabled: !bossReady
+            },
             { label: '[STATUS]', action: showStatus },
         ]);
     }, 60 + data.nodes.length * 40 + 400);
@@ -386,11 +564,11 @@ function showStatus() {
     const p = G.player;
     if (!p) return;
     const armorBonus = p.armor ? p.armor.def_bonus : 0;
-    const effDef     = p.def + armorBonus + (p.temp_def || 0);
+    const effDef = p.def + armorBonus + (p.temp_def || 0);
     clearLog();
     print('> ──── STATUS ────', 'cyan');
     print(`> HP  ${p.hp}/${p.max_hp}  MP  ${p.mp}/${p.max_mp}`, 'prompt');
-    print(`> ATK ${p.atk}  DEF ${effDef}${armorBonus > 0 ? '(素'+p.def+'+防具'+armorBonus+')' : ''}  AGI ${p.agi}  LUK ${p.luk}`, 'prompt');
+    print(`> ATK ${p.atk}  DEF ${effDef}${armorBonus > 0 ? '(素' + p.def + '+防具' + armorBonus + ')' : ''}  AGI ${p.agi}  LUK ${p.luk}`, 'prompt');
     print(`> ¥${p.money.toLocaleString()}  STAGE ${p.stage}  DAY ${p.day || 1}`, 'prompt');
     print(`> 防具: ${p.armor ? p.armor.name + ' (DEF+' + p.armor.def_bonus + ' 耐久:' + (p.armor.durability ?? '?') + ')' : 'なし'}`, 'info');
     if (p.weapons.length) print(`> 武器: ${p.weapons.map(w => w.name).join(', ')}`, 'info');
@@ -400,14 +578,14 @@ function showStatus() {
     if (p.items.length > 0) {
         print(`> ── アイテム (${p.items.length}/3) ──`, 'cyan');
         p.items.forEach((it, i) => {
-            print(`> [${i+1}] ${it.name}  ${it.effect.startsWith('perm') ? '永続強化' : it.effect === 'escape' ? '戦闘用' : '使用可'}`, 'prompt', i * 30);
+            print(`> [${i + 1}] ${it.name}  ${it.effect.startsWith('perm') ? '永続強化' : it.effect === 'escape' ? '戦闘用' : '使用可'}`, 'prompt', i * 30);
         });
         printBlank();
         const btns = p.items.map((it, i) => ({
-            label:    `[使う: ${it.name}]`,
-            action:   () => doUseItem(i),
+            label: `[使う: ${it.name}]`,
+            action: () => doUseItem(i),
             disabled: it.effect === 'escape',  // スモークボムは戦闘中のみ
-            cls:      it.effect.startsWith('perm') ? 'amber' : '',
+            cls: it.effect.startsWith('perm') ? 'amber' : '',
         }));
         btns.push({ label: '[閉じる]', action: showMap });
         setCommands('どれを使う？', btns);
@@ -440,8 +618,8 @@ async function startFight() {
     G.mob = data.mob;
     // シーンセット（MOB画像はAPIから返ったimgパスを使用）
     setScene({
-        bgKey:  `fight_${data.player.stage}`,
-        mob:    data.mob.img ? `img/${data.mob.img}` : '',
+        bgKey: `fight_${data.player.stage}`,
+        mob: data.mob.img ? `img/${data.mob.img}` : '',
         player: PLAYER_IMG.normal,
     });
     if (data.mob.is_jk) {
@@ -456,32 +634,36 @@ async function startFight() {
 }
 
 function showFightCommands() {
-    const p        = G.player;
-    const mob      = G.mob;
-    const isJK     = mob && mob.is_jk;
-    const hasThrow = p.weapons.some(w => ['knife','bullet'].includes(w.id));
-    const hasMp    = p.mp >= 10;
+    const p = G.player;
+    const mob = G.mob;
+    const isJK = mob && mob.is_jk;
+    const hasThrow = p.weapons.some(w => ['knife', 'bullet'].includes(w.id));
+    const hasMp = p.mp >= 10;
     const hasSmoke = p.items.some(it => it.effect === 'escape');
 
     if (isJK) {
         setCommands(`【${mob.name}】 ─ 手を出すな`, [
             { label: '[ATTACK ⚠]', action: () => doFightAction('attack'), cls: 'danger' },
-            { label: '[THROW ⚠]',  action: () => doFightAction('throw'),  cls: 'danger', disabled: !hasThrow },
-            { label: '[SKILL ⚠]',  action: () => doFightAction('skill'),  cls: 'danger', disabled: !hasMp },
-            { label: '[DEFEND]',   action: () => doFightAction('defend') },
-            { label: hasSmoke ? '[SMOKE]' : '[SMOKE 🔒]',
-                                   action: () => doFightAction('item'),   disabled: !hasSmoke },
-            { label: '[RUN]',      action: () => doFightAction('run') },
+            { label: '[THROW ⚠]', action: () => doFightAction('throw'), cls: 'danger', disabled: !hasThrow },
+            { label: '[SKILL ⚠]', action: () => doFightAction('skill'), cls: 'danger', disabled: !hasMp },
+            { label: '[DEFEND]', action: () => doFightAction('defend') },
+            {
+                label: hasSmoke ? '[SMOKE]' : '[SMOKE 🔒]',
+                action: () => doFightAction('item'), disabled: !hasSmoke
+            },
+            { label: '[RUN]', action: () => doFightAction('run') },
         ]);
     } else {
         setCommands(`vs 【${mob.name}】 HP:${mob.hp}/${mob.max_hp}`, [
-            { label: '[ATTACK]',                    action: () => doFightAction('attack') },
-            { label: '[THROW]',                     action: () => doFightAction('throw'),  disabled: !hasThrow },
-            { label: '[SKILL]',                     action: () => doFightAction('skill'),  disabled: !hasMp },
-            { label: '[DEFEND]',                    action: () => doFightAction('defend') },
-            { label: hasSmoke ? '[SMOKE]' : '[SMOKE 🔒]',
-                                                    action: () => doFightAction('item'),   disabled: !hasSmoke },
-            { label: '[RUN]',                       action: () => doFightAction('run') },
+            { label: '[ATTACK]', action: () => doFightAction('attack') },
+            { label: '[THROW]', action: () => doFightAction('throw'), disabled: !hasThrow },
+            { label: '[SKILL]', action: () => doFightAction('skill'), disabled: !hasMp },
+            { label: '[DEFEND]', action: () => doFightAction('defend') },
+            {
+                label: hasSmoke ? '[SMOKE]' : '[SMOKE 🔒]',
+                action: () => doFightAction('item'), disabled: !hasSmoke
+            },
+            { label: '[RUN]', action: () => doFightAction('run') },
         ]);
     }
 }
@@ -502,23 +684,23 @@ async function doFightAction(cmd) {
     }
 
     data.lines.forEach((l, i) => {
-        const cls = l.includes('ダメージ')    ? 'warn'
-                  : l.includes('倒した')      ? 'good'
-                  : l.includes('力尽き')      ? 'bad'
-                  : l.includes('通報')        ? 'bad'
-                  : l.includes('罰金')        ? 'bad'
-                  : l.includes('警察')        ? 'bad'
-                  : l.includes('回避')        ? 'cyan'
-                  : l.includes('クリティカル') ? 'good'
-                  : l.includes('見切り')      ? 'cyan'
-                  : 'prompt';
+        const cls = l.includes('ダメージ') ? 'warn'
+            : l.includes('倒した') ? 'good'
+                : l.includes('力尽き') ? 'bad'
+                    : l.includes('通報') ? 'bad'
+                        : l.includes('罰金') ? 'bad'
+                            : l.includes('警察') ? 'bad'
+                                : l.includes('回避') ? 'cyan'
+                                    : l.includes('クリティカル') ? 'good'
+                                        : l.includes('見切り') ? 'cyan'
+                                            : 'prompt';
         print(l, cls, i * 60);
     });
 
     // 連打防止: 次コマンド表示までの最低待機時間を延長
     const baseDelay = data.lines.length * 60;
-    const antiSpam  = 700;   // ms — ボタン再表示の最低待機
-    const delay     = Math.max(baseDelay, antiSpam) + 200;
+    const antiSpam = 700;   // ms — ボタン再表示の最低待機
+    const delay = Math.max(baseDelay, antiSpam) + 200;
 
     setTimeout(() => {
         switch (data.result) {
@@ -573,8 +755,8 @@ async function startBoss() {
     updateHUD(data.player);
     G.mob = data.mob;
     setScene({
-        bgKey:  `boss_${data.player.stage}`,
-        mob:    BOSS_IMG[data.player.stage] || '',
+        bgKey: `boss_${data.player.stage}`,
+        mob: BOSS_IMG[data.player.stage] || '',
         player: PLAYER_IMG.normal,
     });
     print('> ───────────────────────────', 'dim');
@@ -634,7 +816,7 @@ async function startFoodShop() {
     print(`> アイテム所持: ${p.items.length}/3`, 'dim');
     printBlank();
     data.stock.forEach((it, i) => {
-        print(`> [${i+1}] ${it.name.padEnd(12)} ¥${String(it.price).padStart(5)}  ${it.desc}`, 'prompt', i * 50);
+        print(`> [${i + 1}] ${it.name.padEnd(12)} ¥${String(it.price).padStart(5)}  ${it.desc}`, 'prompt', i * 50);
     });
     printBlank();
     if (p.items.length > 0)
@@ -643,10 +825,10 @@ async function startFoodShop() {
 
     const full = p.items.length >= 3;
     const btns = data.stock.map((it, i) => ({
-        label:    `[買う${i+1}: ¥${it.price}]`,
-        action:   () => doBuyFood(i),
+        label: `[買う${i + 1}: ¥${it.price}]`,
+        action: () => doBuyFood(i),
         disabled: full || p.money < it.price,
-        cls:      'amber',
+        cls: 'amber',
     }));
     btns.push({ label: '[戻る]', action: startInn });
     setTimeout(() => setCommands(full ? 'アイテム満杯' : 'お土産を買う？', btns), data.stock.length * 50 + 300);
@@ -672,7 +854,7 @@ async function startDojo() {
     const data = await api('dojo_info');
     if (!data) return;
     updateHUD(data.player);
-    const p    = data.player;
+    const p = data.player;
     const cost = data.cost;   // action.phpでdojo_cost*4済みの値が返る
 
     print('> 修練所に入った。', 'info');
@@ -716,9 +898,9 @@ async function startWeaponShop() {
     printBlank();
 
     data.stock.forEach((w, i) => {
-        const dmgStr   = w.dmg[1] > 0 ? `DMG:${w.dmg[0]}-${w.dmg[1]}` : '投擲専用';
+        const dmgStr = w.dmg[1] > 0 ? `DMG:${w.dmg[0]}-${w.dmg[1]}` : '投擲専用';
         const throwStr = w.throw_dmg ? ` 投:${w.throw_dmg[0]}-${w.throw_dmg[1]}` : '';
-        print(`> [${i+1}] ${w.name.padEnd(8)} ¥${String(w.price).padStart(5)}  ${dmgStr}${throwStr}`, 'prompt', i * 50);
+        print(`> [${i + 1}] ${w.name.padEnd(8)} ¥${String(w.price).padStart(5)}  ${dmgStr}${throwStr}`, 'prompt', i * 50);
         print(`>     ${w.desc}`, 'info', i * 50 + 20);
     });
 
@@ -726,12 +908,12 @@ async function startWeaponShop() {
     print(`> 現在の武装: ${data.player.weapons.length > 0 ? data.player.weapons.map(w => w.name).join(' / ') : 'なし'}`, 'dim');
     printBlank();
 
-    const p    = data.player;
+    const p = data.player;
     const btns = data.stock.map((w, i) => ({
-        label:    `[買う${i+1}: ¥${w.price}]`,
-        action:   () => doBuyWeapon(i),
+        label: `[買う${i + 1}: ¥${w.price}]`,
+        action: () => doBuyWeapon(i),
         disabled: p.money < w.price,
-        cls:      'amber',
+        cls: 'amber',
     }));
     btns.push({ label: '[戻る]', action: showMap });
     setTimeout(() => setCommands('どれを買う？', btns), data.stock.length * 50 + 300);
@@ -762,19 +944,19 @@ async function startItemShop() {
     printBlank();
 
     data.stock.forEach((it, i) => {
-        print(`> [${i+1}] ${it.name.padEnd(10)} ¥${String(it.price).padStart(5)}  ${it.desc}`, 'prompt', i * 50);
+        print(`> [${i + 1}] ${it.name.padEnd(10)} ¥${String(it.price).padStart(5)}  ${it.desc}`, 'prompt', i * 50);
     });
 
     printBlank();
     print(`> 所持道具: ${data.player.items.length > 0 ? data.player.items.map(i => i.name).join(' / ') : 'なし'}`, 'dim');
     printBlank();
 
-    const p    = data.player;
+    const p = data.player;
     const btns = data.stock.map((it, i) => ({
-        label:    `[買う${i+1}: ¥${it.price}]`,
-        action:   () => doBuyItem(i),
+        label: `[買う${i + 1}: ¥${it.price}]`,
+        action: () => doBuyItem(i),
         disabled: p.money < it.price,
-        cls:      'amber',
+        cls: 'amber',
     }));
     btns.push({ label: '[戻る]', action: showMap });
     setTimeout(() => setCommands('どれを買う？', btns), data.stock.length * 50 + 300);
@@ -810,16 +992,16 @@ async function startArmorShop() {
     printBlank();
 
     data.stock.forEach((a, i) => {
-        print(`> [${i+1}] ${a.name.padEnd(10)} ¥${String(a.price).padStart(5)}  DEF+${a.def_bonus}`, 'prompt', i * 50);
+        print(`> [${i + 1}] ${a.name.padEnd(10)} ¥${String(a.price).padStart(5)}  DEF+${a.def_bonus}`, 'prompt', i * 50);
         print(`>     ${a.desc}`, 'info', i * 50 + 20);
     });
 
     printBlank();
     const btns = data.stock.map((a, i) => ({
-        label:    `[装備${i+1}: ¥${a.price}]`,
-        action:   () => doBuyArmor(i),
+        label: `[装備${i + 1}: ¥${a.price}]`,
+        action: () => doBuyArmor(i),
         disabled: p.money < a.price,
-        cls:      'amber',
+        cls: 'amber',
     }));
     btns.push({ label: '[戻る]', action: showMap });
     setTimeout(() => setCommands('どれを装備する？', btns), data.stock.length * 50 + 300);
@@ -876,8 +1058,50 @@ function gameClear() {
 }
 
 // ============================================================
+//  CRT canvas オーバーレイ描画
+//  スキャンライン + ビネット をrAFで常時描画
+// ============================================================
+function initCRT() {
+    const canvas = document.getElementById('crt-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+        const area = logArea();
+        canvas.width = area.offsetWidth;
+        canvas.height = area.offsetHeight;
+    }
+    resize();
+    new ResizeObserver(resize).observe(logArea());
+
+    function draw() {
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        // ---- スキャンライン ----
+        const lineH = 3;
+        ctx.fillStyle = 'rgba(0,0,0,0.22)';
+        for (let y = 0; y < h; y += lineH) {
+            ctx.fillRect(0, y, w, 1);
+        }
+
+        // ---- ビネット ----
+        const grad = ctx.createRadialGradient(w / 2, h / 2, h * 0.28, w / 2, h / 2, h * 0.85);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.62)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+
+        requestAnimationFrame(draw);
+    }
+    draw();
+}
+
+// ============================================================
 //  起動
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+    initCRT();
     showTitle();
 });

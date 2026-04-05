@@ -6,7 +6,8 @@
 
 define('GAME_TITLE', 'STREET DOGS');
 define('SESSION_KEY', 'sd_player');
-define('DATA_DIR', __DIR__ . '/data');
+define('DATA_DIR',  __DIR__ . '/data');
+defined('SAVE_DIR') || define('SAVE_DIR',  __DIR__ . '/data/saves');
 
 // ステージ定義（変更頻度低いのでPHP直書き）
 define('STAGES', [
@@ -207,13 +208,12 @@ function mob_encounter(int $stage): array {
     $st    = STAGES[$stage];
     $ranks = STAGE_MOB_RANKS[$stage];
 
-    // ランク0出現判定: 15%の確率でランク0をエンカウント（複数種からランダム選択）
+    // JK出現判定: 15%の確率でJKをエンカウント
     $jk_pool = array_values(array_filter(mobs_all(), fn($m) => $m['rank'] === 0));
     if (!empty($jk_pool) && rng(1, 100) <= 15) {
-        $template = $jk_pool[rng(0, count($jk_pool) - 1)];
+        $template = $jk_pool[0];
         $hp = max(1, rng(8, 15));
         return [
-            'id'       => $template['id'],
             'name'     => $template['name'],
             'rank'     => 0,
             'img'      => $template['img'],
@@ -246,7 +246,6 @@ function mob_encounter(int $stage): array {
     $hp = $spread($base_hp);
     $rank = $template['rank'];
     return [
-        'id'       => $template['id'],
         'name'     => $template['name'],
         'rank'     => $rank,
         'img'      => $template['img'],
