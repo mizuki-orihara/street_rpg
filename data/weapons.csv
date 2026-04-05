@@ -1,0 +1,10 @@
+id,name,type,dmg_min,dmg_max,throw_dmg_min,throw_dmg_max,price_min,price_max,desc
+knife,ナイフ,throw,4,10,12,22,80,160,投擲可。ターンごと自動消費
+bullet,鉛玉,throw,0,0,15,28,60,120,投擲専用。ターンごと自動消費
+pipe,鉄パイプ,melee,12,22,,,100,200,鈍器。頑丈で重い
+knuckle,メリケン,melee,8,14,,,80,150,拳に装着。AGI補正あり
+dagger,短剣,sword,14,24,,,150,280,小型の刃。素早い一撃
+sword,片手剣,sword,18,30,,,250,420,標準的な剣
+greatsword,大剣,sword,26,42,,,400,650,重いが威力高め
+katana,軍刀,sword,20,35,,,300,520,切れ味鋭い
+axe,斧,sword,22,38,,,280,480,重量感ある一撃

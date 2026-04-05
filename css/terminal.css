@@ -1,0 +1,323 @@
+/* ============================================================
+   terminal.css — CRTターミナル風スタイル（スマホ対応）
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap');
+
+:root {
+  --green:      #33ff33;
+  --green-dim:  #1a8c1a;
+  --green-dark: #0d3d0d;
+  --amber:      #ffb000;
+  --red:        #ff3333;
+  --cyan:       #33ffff;
+  --bg:         #030b03;
+  --scanline:   rgba(0,0,0,0.25);
+  --crt-glow:   0 0 8px #33ff33, 0 0 20px rgba(51,255,51,0.3);
+  --btn-min-h:  44px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  /* 高さ指定はcrt-wrapのposition:fixedに委ねる */
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: var(--green);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  touch-action: manipulation;
+}
+
+/* position:fixed + inset:0 でSafariのダイナミックツールバーを完全回避
+   dvh = dynamic viewport height（Safari 15.4+対応）
+   フォールバック順: dvh → svh（smallest） → 100% */
+#crt-wrap {
+  position: fixed;
+  inset: 0;
+  /* フォールバック */
+  width: 100%;
+  height: 100%;
+  height: 100svh;  /* smallest viewport height — ツールバー最大表示時の高さで固定 */
+  height: 100dvh;  /* dynamic viewport height — ツールバー変動に追従（最優先） */
+  overflow: hidden;
+  background: var(--bg);
+}
+
+#crt-wrap::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    var(--scanline) 0px,
+    var(--scanline) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 9998;
+  animation: scanroll 12s linear infinite;
+  opacity: 0.6;
+}
+
+#crt-wrap::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.65) 100%);
+  pointer-events: none;
+  z-index: 9997;
+}
+
+@keyframes scanroll {
+  from { background-position: 0 0; }
+  to   { background-position: 0 100px; }
+}
+
+#terminal {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* #crt-wrapがfixedなのでこちらはそのまま100%で追従 */
+}
+
+/* ---- ステータスバー（2行） ---- */
+#status-bar {
+  flex-shrink: 0;
+  background: var(--green-dark);
+  border-bottom: 1px solid var(--green-dim);
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.status-row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 1px 0;
+}
+.status-row::-webkit-scrollbar { display: none; }
+.status-row + .status-row {
+  border-top: 1px solid rgba(26,140,26,0.3);
+  margin-top: 2px;
+  padding-top: 2px;
+}
+
+.stat-item             { color: var(--green-dim); flex-shrink: 0; }
+.stat-item span        { color: var(--green); }
+.stat-item.warn   span { color: var(--amber); }
+.stat-item.danger span { color: var(--red); }
+.stat-item.active span { color: var(--amber); text-shadow: 0 0 6px var(--amber); }
+
+/* ---- ログ領域 ---- */
+#log-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 12px;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  position: relative;  /* sceneの親として機能 */
+}
+
+/* ---- シーン画像レイヤー ---- */
+#scene {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.scene-layer {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  /* grayscale(1) は手動グレスケ素材が揃ったらコメントアウト */
+  filter: grayscale(1) brightness(0.65) contrast(1.1);
+  transition: opacity 0.4s ease;
+  opacity: 0;
+}
+.scene-layer.visible { opacity: 1; }
+
+/* 背景: スマホ/タブレットは中心から10%左オフセット */
+#scene-bg {
+  z-index: 1;
+  background-size: cover;
+  background-position: 40% center;  /* 50%-10% = 40% */
+}
+@media (min-width: 1024px) {
+  /* デスクトップはセンター */
+  #scene-bg { background-position: center center; }
+}
+
+/* 敵MOB: 右上角揃え・高さ60% */
+#scene-mob {
+  z-index: 2;
+  background-size: auto 60%;
+  background-position: right top;
+}
+
+/* プレイヤー: 左下角揃え・高さ60% */
+#scene-player {
+  z-index: 3;
+  background-size: auto 60%;
+  background-position: left bottom;
+}
+
+/* テキストログをシーンの上に重ねる */
+#log-content {
+  position: relative;
+  z-index: 4;
+  /* 画像がある場合に読みやすくする半透明背景 */
+  /* has-scene クラスが付いた時のみ有効 */
+}
+#log-area.has-scene #log-content {
+  background: linear-gradient(
+    to bottom,
+    rgba(3,11,3,0.0) 0%,
+    rgba(3,11,3,0.7) 30%,
+    rgba(3,11,3,0.8) 100%
+  );
+  min-height: 100%;
+  padding: 8px 0;
+}
+#log-area::-webkit-scrollbar { width: 4px; }
+#log-area::-webkit-scrollbar-thumb { background: var(--green-dark); border-radius: 2px; }
+
+.line {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-all;
+  opacity: 0;
+  animation: fadeIn 0.05s forwards;
+  font-size: clamp(13px, 3.2vw, 15px);
+  line-height: 1.65;
+}
+@keyframes fadeIn { to { opacity: 1; } }
+
+.line.prompt { color: var(--green); }
+.line.info   { color: var(--green-dim); }
+.line.good   { color: #33ff33; text-shadow: var(--crt-glow); }
+.line.bad    { color: var(--red); }
+.line.warn   { color: var(--amber); }
+.line.cyan   { color: var(--cyan); }
+.line.header { color: var(--green); text-shadow: var(--crt-glow); }
+.line.dim    { color: #1a4d1a; }
+.line.blank  { height: 0.7em; display: block; }
+
+/* ---- コマンドエリア ---- */
+#cmd-area {
+  flex-shrink: 0;
+  border-top: 1px solid var(--green-dim);
+  padding: 6px 10px 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  background: var(--green-dark);
+}
+
+#cmd-title {
+  font-size: 11px;
+  color: var(--green-dim);
+  margin-bottom: 6px;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#cmd-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ---- ボタン ---- */
+.cmd-btn {
+  background: transparent;
+  border: 1px solid var(--green-dim);
+  color: var(--green);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(12px, 3vw, 14px);
+  padding: 0 14px;
+  min-height: var(--btn-min-h);
+  min-width: 60px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.cmd-btn:hover,
+.cmd-btn:focus,
+.cmd-btn:active {
+  background: var(--green);
+  color: var(--bg);
+  border-color: var(--green);
+  outline: none;
+  box-shadow: var(--crt-glow);
+}
+
+@media (hover: none) {
+  .cmd-btn:active { background: var(--green); color: var(--bg); }
+}
+
+.cmd-btn.danger              { border-color: var(--red);   color: var(--red);   }
+.cmd-btn.danger:hover,
+.cmd-btn.danger:active        { background: var(--red);   color: #000; border-color: var(--red);   box-shadow: none; }
+
+.cmd-btn.amber               { border-color: var(--amber); color: var(--amber); }
+.cmd-btn.amber:hover,
+.cmd-btn.amber:active         { background: var(--amber); color: #000; box-shadow: none; }
+
+.cmd-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ---- レスポンシブ ---- */
+@media (max-width: 375px) {
+  #status-bar { font-size: 11px; gap: 12px; }
+  .cmd-btn    { font-size: 12px; padding: 0 10px; min-height: 40px; }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  #status-bar { padding: 3px 10px; font-size: 11px; }
+  .line       { font-size: 12px; line-height: 1.5; }
+  .cmd-btn    { min-height: 36px; }
+  #cmd-area   { padding: 4px 10px; padding-bottom: max(4px, env(safe-area-inset-bottom)); }
+  #cmd-title  { margin-bottom: 4px; }
+}
+
+@media (min-width: 768px) {
+  .line        { font-size: 14px; }
+  #status-bar  { font-size: 13px; }
+  .status-row  { overflow-x: visible; flex-wrap: wrap; gap: 20px; }
+  .cmd-btn     { font-size: 13px; min-height: 32px; padding: 4px 12px; }
+  #cmd-area    { padding: 6px 12px 10px; }
+}
+
+/* ---- フラッシュ ---- */
+@keyframes screenFlash {
+  0%   { filter: brightness(1); }
+  20%  { filter: brightness(3) saturate(0); }
+  100% { filter: brightness(1); }
+}
+.flash { animation: screenFlash 0.3s ease; }
