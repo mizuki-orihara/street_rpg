@@ -19,7 +19,8 @@
         <div class="scene-layer" id="scene-mob"></div>
         <div class="scene-layer" id="scene-player"></div>
       </div>
-      <div id="log-content"></div>
+      <textarea id="log-textarea" readonly spellcheck="false" autocomplete="off"></textarea>
+      <canvas id="crt-canvas"></canvas>
     </div>
     <div id="cmd-area">
       <div id="cmd-title">──</div>

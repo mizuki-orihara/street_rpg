@@ -40,7 +40,9 @@ function dojo_train(): array {
     }
 
     $p['money'] -= $cost;
-    $pct = rng(1, 5);   // 1〜5% 上限値上昇率（全statで共通）
+    // ステージ数でスケール: ST1=1-5% / ST2=2-6% / ST3=3-7% / EXはST3扱い
+    $stage_key = min($p['stage'], 3);
+    $pct = rng($stage_key, $stage_key + 4);
 
     $lines = ["> 修練。¥{$cost} 消費。(上限+{$pct}%)"];
 
@@ -243,8 +245,9 @@ function item_use(int $idx): array {
             break;
         case 'gold_fever':
             $p['gold_fever_days'] = ($p['gold_fever_days'] ?? 0) + $item['value'];
-            $p['reward_mult']     = min(4.2, ($p['reward_mult'] ?? 1.0) + 1.0);
+            // reward_multへの即時加算は廃止。戦闘終了後に+2.0シフトで作用する。
             $lines[] = "> [{$item['name']}] 使用。{$item['value']}日間 獲得金ボーナス！";
+            $lines[] = "> ※ 効果は次の戦闘勝利後に発動。";
             break;
         case 'perm_atk':
             $p['atk'] += $item['value'];
@@ -263,7 +266,8 @@ function item_use(int $idx): array {
             $lines[] = "> [{$item['name']}] 使用。LUK +{$item['value']}（永続）。(現在: {$p['luk']})";
             break;
         case 'escape':
-            // マップ画面では使えない
+        case 'omamori':
+            // マップ画面では使えない（ボス戦敗北時に自動発動）
             array_splice($p['items'], $idx, 0, [$item]);  // 戻す
             $lines[] = "> [{$item['name']}] は戦闘中にしか使えない。";
             break;
@@ -287,11 +291,12 @@ function armor_shop_stock(): array {
     $stock = [];
     foreach ($pool as $a) {
         $stock[] = [
-            'id'        => $a['id'],
-            'name'      => $a['name'],
-            'def_bonus' => $a['def_bonus'],
-            'desc'      => $a['desc'],
-            'price'     => rng($a['price'][0], $a['price'][1]),
+            'id'         => $a['id'],
+            'name'       => $a['name'],
+            'def_bonus'  => $a['def_bonus'],
+            'durability' => $a['durability'],
+            'desc'       => $a['desc'],
+            'price'      => rng($a['price'][0], $a['price'][1]),
         ];
     }
     $_SESSION['armor_stock'] = $stock;
@@ -314,7 +319,7 @@ function armor_buy(int $idx): array {
         'id'         => $item['id'],
         'name'       => $item['name'],
         'def_bonus'  => $item['def_bonus'],
-        'durability' => $item['def_bonus'],   // 耐久値 = def_bonusと同値でスタート
+        'durability' => $item['durability'],  // 耐久値はCSVで個別設定
     ];
     $p = advance_day($p);
     player_set($p);

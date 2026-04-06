@@ -366,6 +366,63 @@ switch ($action) {
         )]);
     }
 
+    // ---- ゲームオーバー時: STORYスロット消去 + PVP任意保存 ----
+    case 'gameover_save_pvp': {
+        $uuid     = get_or_create_uuid();
+        $pvp_slot = $input['pvp_slot'] ?? '';   // 'pvp_1'〜'pvp_3'
+        $story_slot = $input['story_slot'] ?? '';
+
+        if (!preg_match('/^story_[123]$/', $story_slot)) {
+            resp(['ok' => false, 'error' => 'invalid story_slot']);
+        }
+
+        $story = story_load($uuid);
+        $p     = $story['slots'][$story_slot] ?? null;
+
+        // PVPスロットに保存（指定があれば）
+        if ($p && preg_match('/^pvp_[123]$/', $pvp_slot)) {
+            ensure_dir($uuid);
+            $pvp_path = pvp_path($uuid);
+            $pvp = file_exists($pvp_path)
+                ? json_decode(file_get_contents($pvp_path), true)
+                : ['creator' => '', 'creator_id' => '', 'updated_at' => null,
+                   'slots' => ['pvp_1' => null, 'pvp_2' => null, 'pvp_3' => null]];
+
+            // STORYキャラをPVP形式で保存（_pvp_nameにキャラ名をコピー）
+            $pvp_char = $p;
+            $pvp_char['_pvp_name']  = $p['name'] ?? '名無し';
+            $pvp_char['_saved_at']  = date('c');
+            $pvp['slots'][$pvp_slot] = $pvp_char;
+            $pvp['updated_at']       = date('c');
+            file_put_contents($pvp_path, json_encode($pvp, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        }
+
+        // STORYスロット消去
+        $story['slots'][$story_slot] = null;
+        story_save($uuid, $story);
+
+        resp(['ok' => true, 'story_slot' => $story_slot, 'pvp_slot' => $pvp_slot ?: null]);
+    }
+
+    // ---- PVPスロット概要取得（スロット選択画面用） ----
+    case 'pvp_slot_list': {
+        $uuid     = get_or_create_uuid();
+        $pvp_path = pvp_path($uuid);
+        if (!file_exists($pvp_path)) {
+            resp(['ok' => true, 'slots' => [
+                ['slot' => 'pvp_1', 'empty' => true],
+                ['slot' => 'pvp_2', 'empty' => true],
+                ['slot' => 'pvp_3', 'empty' => true],
+            ]]);
+        }
+        $pvp  = json_decode(file_get_contents($pvp_path), true);
+        $list = array_map(
+            fn($id) => slot_summary($pvp['slots'][$id] ?? null, $id),
+            ['pvp_1', 'pvp_2', 'pvp_3']
+        );
+        resp(['ok' => true, 'slots' => $list]);
+    }
+
     default:
         resp(['ok' => false, 'error' => 'unknown action: ' . $action]);
 }

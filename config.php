@@ -170,11 +170,14 @@ function armors_all(): array {
     $rows = csv_load('armors.csv');
     return array_map(function($r) {
         return [
-            'id'        => $r['id'],
-            'name'      => $r['name'],
-            'def_bonus' => (int)$r['def_bonus'],
-            'price'     => [(int)$r['price_min'], (int)$r['price_max']],
-            'desc'      => $r['desc'],
+            'id'         => $r['id'],
+            'name'       => $r['name'],
+            'def_bonus'  => (int)$r['def_bonus'],
+            'durability' => isset($r['durability']) && $r['durability'] !== ''
+                            ? (int)$r['durability']
+                            : (int)$r['def_bonus'],  // 旧CSV互換: def_bonusと同値
+            'price'      => [(int)$r['price_min'], (int)$r['price_max']],
+            'desc'       => $r['desc'],
         ];
     }, $rows);
 }
@@ -185,19 +188,78 @@ function armors_all(): array {
 function mobs_all(): array {
     $rows = csv_load('mobs.csv');
     return array_map(function($r) {
+        $t1 = $r['tendency_1'] ?? '';
+        $t2 = $r['tendency_2'] ?? '';
         return [
-            'id'       => $r['id'],
-            'name'     => $r['name'],
-            'rank'     => (int)$r['rank'],
-            'hp_mul'   => (float)$r['hp_mul'],
-            'atk_mul'  => (float)$r['atk_mul'],
-            'def_mul'  => (float)$r['def_mul'],
-            'agi_mul'  => (float)$r['agi_mul'],
-            'note'     => $r['note'],
-            'img'      => $r['img'] ?? '',
-            'boss_pts' => (int)($r['boss_pts'] ?? 0),
+            'id'              => $r['id'],
+            'name'            => $r['name'],
+            'rank'            => (int)$r['rank'],
+            'hp_mul'          => (float)$r['hp_mul'],
+            'atk_mul'         => (float)$r['atk_mul'],
+            'def_mul'         => (float)$r['def_mul'],
+            'agi_mul'         => (float)$r['agi_mul'],
+            'note'            => $r['note'],
+            'img'             => $r['img'] ?? '',
+            'boss_pts'        => (int)($r['boss_pts'] ?? 0),
+            // 行動傾向
+            'tendency_1'      => $t1,
+            'tendency_2'      => $t2,
+            'action_weights'  => mob_action_weights($t1, $t2),
+            // 報酬・アイテム関連
+            'gold_base'       => $r['gold_base'] !== '' ? (int)$r['gold_base'] : null,
+            'mob_item_chance' => (int)($r['mob_item_chance'] ?? 0),
+            'mob_use_chance'  => (int)($r['mob_use_chance']  ?? 0),
         ];
     }, $rows);
+}
+
+// ============================================================
+//  tendency → 行動重みテーブル生成
+//
+//  行動キー: attack / guard / flee / skill / buff / debuff
+//
+//  ベース値（傾向なし）:
+//    attack:40 guard:20 flee:10 skill:15 buff:10 debuff:5
+//
+//  tendency_1（主軸）の対象キーに +40 加算
+//  tendency_2（副軸）の対象キーに +20 加算
+//  → 合計が行動抽選の分母になる
+// ============================================================
+function mob_action_weights(string $t1, string $t2): array {
+    $base = [
+        'attack' => 40,
+        'guard'  => 20,
+        'flee'   => 10,
+        'skill'  => 15,
+        'buff'   => 10,
+        'debuff' =>  5,
+    ];
+    $valid = array_keys($base);
+
+    // 主軸 +40
+    if (in_array($t1, $valid)) $base[$t1] += 40;
+    // 副軸 +20
+    if (in_array($t2, $valid)) $base[$t2] += 20;
+
+    return $base;
+}
+
+/**
+ * 重みテーブルから1つの行動をランダム抽選する
+ * fight.php の敵行動決定で呼ぶ
+ *
+ * @param  array  $weights  ['attack'=>N, 'guard'=>M, ...]
+ * @return string           選ばれた行動キー
+ */
+function mob_action_roll(array $weights): string {
+    $total = array_sum($weights);
+    $roll  = rng(1, $total);
+    $cum   = 0;
+    foreach ($weights as $action => $w) {
+        $cum += $w;
+        if ($roll <= $cum) return $action;
+    }
+    return 'attack';  // fallback
 }
 
 /**
@@ -246,17 +308,25 @@ function mob_encounter(int $stage): array {
     $hp = $spread($base_hp);
     $rank = $template['rank'];
     return [
-        'name'     => $template['name'],
-        'rank'     => $rank,
-        'img'      => $template['img'],
-        'hp'       => $hp,
-        'max_hp'   => $hp,
-        'atk'      => $spread($base_atk),
-        'def'      => $spread($base_def),
-        'agi'      => $spread($base_agi),
-        'is_boss'  => false,
-        'is_jk'    => false,
-        'boss_pts' => $template['boss_pts'],
+        'id'              => $template['id'],
+        'name'            => $template['name'],
+        'rank'            => $rank,
+        'img'             => $template['img'],
+        'hp'              => $hp,
+        'max_hp'          => $hp,
+        'atk'             => $spread($base_atk),
+        'def'             => $spread($base_def),
+        'agi'             => $spread($base_agi),
+        'is_boss'         => false,
+        'is_jk'           => false,
+        'boss_pts'        => $template['boss_pts'],
+        // 行動制御
+        'action_weights'  => $template['action_weights'],
+        'mob_item_chance' => $template['mob_item_chance'],
+        'mob_use_chance'  => $template['mob_use_chance'],
+        'mob_items'       => [],   // 戦闘開始時の抽選で設定（fight.php側）
+        // 報酬
+        'gold_base'       => $template['gold_base'],
     ];
 }
 

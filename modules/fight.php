@@ -89,31 +89,76 @@ function _clamp_mult(float $v): float {
 // ============================================================
 function fight_init(bool $is_boss = false): array {
     $p  = player_get();
-    $st = STAGES[$p['stage']];
+
+    // EXステージ中はSTAGE定数の範囲外なのでST3テーブルで代用
+    $stage_key = min($p['stage'], count(STAGES));
+    $st = STAGES[$stage_key];
 
     if ($is_boss) {
-        $mob = [
-            'name'    => $st['boss']['name'],
-            'hp'      => $st['boss']['hp'],
-            'max_hp'  => $st['boss']['hp'],
-            'atk'     => $st['boss']['atk'],
-            'def'     => $st['boss']['def'],
-            'agi'     => $st['boss']['agi'] ?? 20,
-            'is_boss' => true,
-        ];
+        if (!empty($p['ex_stage'])) {
+            // EXボス = プレイヤークローン × 1.3倍
+            $mul  = 1.3;
+            $name = 'SHADOW ' . ($p['name'] ?? '名無し');
+            $hp   = max(1, (int)floor($p['max_hp'] * $mul));
+            $mob  = [
+                'name'     => $name,
+                'hp'       => $hp,
+                'max_hp'   => $hp,
+                'atk'      => max(1, (int)floor($p['atk']  * $mul)),
+                'def'      => max(1, (int)floor($p['def']  * $mul)),
+                'agi'      => max(1, (int)floor($p['agi']  * $mul)),
+                'is_boss'  => true,
+                'is_ex'    => true,
+            ];
+        } else {
+            $mob = [
+                'name'    => $st['boss']['name'],
+                'hp'      => $st['boss']['hp'],
+                'max_hp'  => $st['boss']['hp'],
+                'atk'     => $st['boss']['atk'],
+                'def'     => $st['boss']['def'],
+                'agi'     => $st['boss']['agi'] ?? 20,
+                'is_boss' => true,
+                'is_ex'   => false,
+            ];
+        }
     } else {
-        $mob = mob_encounter($p['stage']);
+        $mob = mob_encounter($stage_key);
     }
 
-    // 報酬倍率リセット。護符あり: 即 +1.0
+    // 報酬倍率リセット（護符は戦闘中無関与・終了後に加算）
     $p['reward_mult'] = 1.0;
-    if (!empty($p['gold_fever_days'])) {
-        $p['reward_mult'] = 2.0;
+
+    // ---- 敵のアイテム所持抽選（ランク0・ボスは対象外）----
+    if (empty($mob['is_jk']) && empty($mob['is_boss']) && empty($mob['is_ex'])) {
+        $mob['mob_items'] = _mob_item_draw($mob);
     }
 
     $p['battle'] = $mob;
     player_set($p);
     return $mob;
+}
+
+// ============================================================
+//  戦闘開始時: 敵アイテム所持抽選
+//  ロール1: mob_item_chance% でアイテムを持つか
+//  ロール2: enemy_use=1 のアイテムからランダム1種選択
+// ============================================================
+function _mob_item_draw(array $mob): array {
+    $chance = $mob['mob_item_chance'] ?? 0;
+    if ($chance <= 0 || rng(1, 100) > $chance) return [];
+
+    // enemy_use=1 のアイテム候補
+    $pool = array_values(array_filter(items_all(), fn($it) => (int)($it['enemy_use'] ?? 0) === 1));
+    if (empty($pool)) return [];
+
+    $item = $pool[rng(0, count($pool) - 1)];
+    return [[
+        'id'     => $item['id'],
+        'name'   => $item['name'],
+        'effect' => $item['effect'],
+        'value'  => $item['value'],
+    ]];
 }
 
 // ============================================================
@@ -248,48 +293,16 @@ function fight_action(string $action): array {
         return _resolve_win($p, $mob, $lines);
     }
 
-    // ---- 敵の反撃 ----
+    // ---- 敵のターン ----
     if ($action !== 'run') {
-        $m_base   = max(0, $mob['atk'] + rng(-4, 4));
-        $m_after  = max(0, $m_base - $p_def);
-        if ($defending) $m_after = (int)($m_after / 2);
+        [$mob, $lines, $p, $mob_escaped] = _mob_turn($mob, $p, $p_def, $p_agi, $defending, $lines);
 
-        // 敵攻撃に対するAGI判定（守備側がプレイヤー）
-        $def_judge = _agi_judge($m_agi, $p_agi);
-        $def_label = _judge_label($def_judge);
-
-        // 見切り系はプレイヤーが回避 = ダメージ0
-        $m_dmg = in_array($def_judge, [HIT_PARRY, HIT_EX_PARRY])
-               ? 0
-               : (int)round($m_after * DMG_MULT[$def_judge]);
-
-        if ($m_dmg > 0) {
-            $defend_note = $defending ? ' [防御半減]' : '';
-            $lines[] = "> [{$mob['name']}] 攻撃: {$m_base} - DEF:{$p_def} = {$m_after}{$defend_note}" . ($def_label ? " {$def_label}" : '') . " → {$m_dmg} ダメージ。";
-            $p['hp'] = max(0, $p['hp'] - $m_dmg);
-
-            // 防具の耐久減算（敵ATKの1/4、端数切り捨て・最低1）
-            if (!empty($p['armor'])) {
-                $dur_dmg = max(1, (int)floor($mob['atk'] / 4));
-                $p['armor']['durability'] -= $dur_dmg;
-                if ($p['armor']['durability'] <= 0) {
-                    $lines[] = "> 【{$p['armor']['name']}】が破損して使えなくなった！";
-                    $p['armor'] = null;
-                } else {
-                    $lines[] = "> [{$p['armor']['name']}] 耐久: {$p['armor']['durability']}";
-                }
-            }
-        } else {
-            $msg = $def_label ? "> {$def_label} [{$mob['name']}] の攻撃を見切った！" : "> [{$mob['name']}] の攻撃を完全に弾いた。";
-            $lines[] = $msg;
-        }
-
-        // 報酬倍率: 防御結果を加算
-        $def_delta = REWARD_DEF_DELTA[$def_judge];
-        if ($def_delta != 0.0) {
-            $p['reward_mult'] = _clamp_mult($p['reward_mult'] + $def_delta);
-            $sign = $def_delta > 0 ? '+' : '';
-            $lines[] = "> [倍率] 防御 {$sign}" . number_format($def_delta, 1) . " → ×" . number_format($p['reward_mult'], 1);
+        // 敵が逃走した場合
+        if ($mob_escaped) {
+            $p['battle'] = null; $p['reward_mult'] = 1.0;
+            $p = advance_day($p);
+            player_set($p);
+            return ['lines' => $lines, 'result' => 'mob_escape', 'player' => $p];
         }
     }
 
@@ -301,6 +314,36 @@ function fight_action(string $action): array {
     // ---- 死亡判定 ----
     if ($p['hp'] <= 0) {
         $lines[] = "> 力尽きた……";
+
+        // ボス戦 & お守り所持 → 自動発動
+        if (!empty($mob['is_boss'])) {
+            $omamori_idx = _find_item_idx($p, 'omamori');
+            if ($omamori_idx !== false) {
+                array_splice($p['items'], $omamori_idx, 1);
+                $lines[] = "> 【お守り】が砕けた！";
+
+                $penalty = max(500, min(3000, (int)floor($p['money'] * 0.10)));
+
+                // 所持金がペナルティ最低額に満たない → ゲームオーバー確定
+                if ($p['money'] < 500) {
+                    $lines[] = "> ……金もない。もう終わりだ。";
+                    $p['battle'] = null; $p['reward_mult'] = 1.0;
+                    player_set($p);
+                    return ['lines' => $lines, 'result' => 'game_over_poor', 'player' => $p];
+                }
+
+                // 生還
+                $p['money'] -= $penalty;
+                $p['hp']     = 1;
+                $lines[] = "> 九死に一生を得た。";
+                $lines[] = "> ペナルティ: ¥{$penalty} 徴収。";
+                $p['battle'] = null; $p['reward_mult'] = 1.0;
+                $p = advance_day($p);
+                player_set($p);
+                return ['lines' => $lines, 'result' => 'omamori_save', 'player' => $p];
+            }
+        }
+
         $p['battle'] = null; $p['reward_mult'] = 1.0;
         player_set($p);
         return ['lines' => $lines, 'result' => 'lose', 'player' => $p];
@@ -415,12 +458,13 @@ function _civilian_dodge_check(array $p, string $mob_id, string $mob_name): arra
         return [$p, $lines];
     }
 
-    // 閾値到達 → ランダム報酬（護符 or スモークボム）
+    // 閾値到達 → ランダム報酬（護符 / スモークボム / お守り）
     $rewards = [
         ['id' => 'gold_fever', 'name' => '金運の護符',   'effect' => 'gold_fever', 'value' => 5],
         ['id' => 'smoke',      'name' => 'スモークボム',  'effect' => 'escape',     'value' => 0],
+        ['id' => 'omamori',    'name' => 'お守り',        'effect' => 'omamori',    'value' => 0],
     ];
-    $reward = $rewards[rng(0, 1)];
+    $reward = $rewards[rng(0, count($rewards) - 1)];
 
     $lines[] = "> ────────────────────";
     $lines[] = "> 【{$mob_name}】との縁が繋がった。";
@@ -448,10 +492,21 @@ function _civilian_dodge_check(array $p, string $mob_id, string $mob_name): arra
 function _resolve_win(array $p, array $mob, array $lines): array {
     $result = 'win';
     $base   = rng(10, 80) + ($p['stage'] - 1) * 20;
+
+    // 護符所持: 戦闘終了後に+2.0シフト（-1.2〜4.2 → +0.8〜6.2）
+    $fever_shift = 0.0;
+    if (!empty($p['gold_fever_days'])) {
+        $fever_shift = 2.0;
+        $p['reward_mult'] = _clamp_mult($p['reward_mult'] + $fever_shift);
+    }
+
     $mult   = $p['reward_mult'];
     $reward = max(0, (int)round($base * $mult));
 
     $lines[] = "> [{$mob['name']}] を倒した！";
+    if ($fever_shift > 0.0) {
+        $lines[] = "> [護符] 報酬倍率 +2.0 シフト → ×" . number_format($mult, 1);
+    }
     $lines[] = "> 報酬: ¥{$base} × " . number_format($mult, 1) . " = ¥{$reward}";
 
     // ボス解放: 通常MOBを倒したらboss_ptsを加算
@@ -488,26 +543,50 @@ function _resolve_win(array $p, array $mob, array $lines): array {
     $p['reward_mult'] = 1.0;
 
     if (!empty($mob['is_boss'])) {
-        $result  = 'boss_win';
         $lines[] = "> ===========================";
-        $lines[] = "> BOSS [{$mob['name']}] 撃破！";
-        $lines[] = "> 武器・アイテムは没収された。";
-        $lines[] = "> ステータスは裸で持ち越す。";
-        $p['weapons']      = [];
-        $p['items']        = [];
-        $p['armor']        = null;
-        $p['boss_progress']= 0;      // 次ステージ用にリセット
-        $p['boss_ready']   = false;
-        $p['stage']++;
-        if ($p['stage'] > count(STAGES)) {
-            $result  = 'game_clear';
-            $lines[] = "> ===========================";
-            $lines[] = "> 全ステージ制覇。";
-            $lines[] = "> お前が路地裏の王だ。";
+
+        if (!empty($mob['is_ex'])) {
+            // ---- EXボス撃破 ----
+            $p['ex_stage']     = ($p['ex_stage'] ?? 1) + 1;
+            $p['ex_depth_max'] = max($p['ex_depth_max'] ?? 0, $p['ex_stage'] - 1);
+            $result            = 'ex_win';
+            $lines[] = "> EX BOSS [{$mob['name']}] 撃破！";
+            $lines[] = "> EX" . ($p['ex_stage'] - 1) . " 到達記録更新。";
+            $lines[] = "> 武器・アイテムは没収された。";
+            $p['weapons']      = [];
+            $p['items']        = [];
+            $p['armor']        = null;
+            $p['boss_progress']= 0;
+            $p['boss_ready']   = false;
+            $p['stage']        = 1;   // ST1から再スタート
+            $p['hp']           = $p['max_hp'];
+            $p['mp']           = $p['max_mp'];
+            $lines[] = "> EX" . $p['ex_stage'] . " 開始。ST1から再スタート。";
         } else {
-            $p['hp'] = $p['max_hp'];
-            $p['mp'] = $p['max_mp'];
-            $lines[] = "> ステージ " . $p['stage'] . " へ。";
+            // ---- 通常ボス撃破 ----
+            $result  = 'boss_win';
+            $lines[] = "> BOSS [{$mob['name']}] 撃破！";
+            $lines[] = "> 武器・アイテムは没収された。";
+            $lines[] = "> ステータスは裸で持ち越す。";
+            $p['weapons']      = [];
+            $p['items']        = [];
+            $p['armor']        = null;
+            $p['boss_progress']= 0;
+            $p['boss_ready']   = false;
+            $p['stage']++;
+            if ($p['stage'] > count(STAGES)) {
+                // ST3撃破 → EXステージへ突入
+                $result          = 'game_clear';
+                $p['ex_stage']   = 1;
+                $p['ex_depth_max']= max($p['ex_depth_max'] ?? 0, 0);
+                $lines[] = "> ===========================";
+                $lines[] = "> 全ステージ制覇。";
+                $lines[] = "> お前が路地裏の王だ。";
+            } else {
+                $p['hp'] = $p['max_hp'];
+                $p['mp'] = $p['max_mp'];
+                $lines[] = "> ステージ " . $p['stage'] . " へ。";
+            }
         }
     }
 
@@ -580,12 +659,225 @@ function _use_item(array $p, array $item): array {
             array_unshift($p['items'], $item); break;
         case 'gold_fever':
             $p['gold_fever_days'] = ($p['gold_fever_days'] ?? 0) + $item['value'];
-            // 戦闘中に使った場合も即 +1.0
-            $p['reward_mult'] = _clamp_mult(($p['reward_mult'] ?? 1.0) + 1.0);
-            $lines[] = "> [{$item['name']}] 使用。{$item['value']}日間 獲得金ボーナス！ 現倍率: ×" . number_format($p['reward_mult'], 1);
+            // 戦闘中使用 → gold_fever_days加算のみ。倍率シフトは勝利時に適用。
+            $lines[] = "> [{$item['name']}] 使用。{$item['value']}日間 獲得金ボーナス！";
+            $lines[] = "> ※ 効果は戦闘勝利後に発動。";
             break;
     }
     return [$p, $lines];
+}
+
+// ============================================================
+//  敵ターン処理（4段階優先順位）
+//
+//  1. 投擲武器あり       → 無条件投擲・消費
+//  2. 回復薬あり & HP低  → use_chance×(1-HP率) で判定
+//  3. スモーク & flee & HP50%以下 → 逃走
+//  4. いずれも非該当     → action_weights テーブルで抽選
+// ============================================================
+function _mob_turn(array $mob, array $p, int $p_def, int $p_agi, bool $defending, array $lines): array {
+    $mob_escaped = false;
+    $m_agi       = $mob['agi'];
+    $did_attack  = false;   // 攻撃処理をここで行ったか
+    $m_dmg       = 0;
+    $def_judge   = HIT_NORMAL;
+
+    // ---- 優先1: 投擲武器 ----
+    $throw_idx = _mob_throw_idx($mob);
+    if ($throw_idx !== false) {
+        $weapon   = $mob['mob_items'][$throw_idx];
+        $td       = get_weapon($weapon['id']);
+        $throw_rng = $td ? $td['throw_dmg'] ?? $td['dmg'] : [5, 12];
+        $raw      = rng($throw_rng[0], $throw_rng[1]);
+        $after    = max(0, $raw - $p_def);
+        $def_judge = _agi_judge($m_agi, $p_agi);
+        $m_dmg    = in_array($def_judge, [HIT_PARRY, HIT_EX_PARRY])
+                  ? 0 : max(1, (int)round($after * DMG_MULT[$def_judge]));
+        $label    = _judge_label($def_judge);
+        $lines[]  = "> [{$mob['name']}] 投擲！ [{$weapon['name']}] 消費。";
+        if ($m_dmg > 0) {
+            $lines[] = ">  {$raw} - DEF:{$p_def} = {$after}" . ($label ? " {$label}" : '') . " → {$m_dmg} ダメージ。";
+        } else {
+            $lines[] = "> " . ($label ? "{$label} " : '') . "投擲を見切った！";
+        }
+        // 消費
+        array_splice($mob['mob_items'], $throw_idx, 1);
+        $did_attack = true;
+
+    // ---- 優先2: 回復薬 ----
+    } elseif (_mob_try_heal($mob, $lines)) {
+        // _mob_try_heal 内でHP回復・消費・ログ追記済み
+        // 参照渡しできないのでmobを再取得する形で対応
+        [$mob, $lines] = _mob_do_heal($mob, $lines);
+        // 回復したターンは攻撃しない
+        goto mob_turn_end;
+
+    // ---- 優先3: スモークボム（逃走） ----
+    } elseif (_mob_try_smoke($mob)) {
+        $smoke_idx = _mob_item_idx($mob, 'escape');
+        array_splice($mob['mob_items'], $smoke_idx, 1);
+        $lines[]     = "> [{$mob['name']}] スモークボムを投げて逃げた！";
+        $mob_escaped = true;
+        goto mob_turn_end;
+
+    // ---- 優先4: tendency テーブルで抽選 ----
+    } else {
+        $weights = $mob['action_weights'] ?? ['attack' => 100];
+        // flee傾向で所持アイテムなし・スモークなし → flee選択時も通常逃走判定
+        $chosen = mob_action_roll($weights);
+
+        if ($chosen === 'flee') {
+            // 逃走試行（スモークなし版）
+            $flee_chance = min(80, ($mob['mob_item_chance'] ?? 0) + $m_agi - $p_agi);
+            if (rng(1, 100) <= max(10, $flee_chance)) {
+                $lines[]     = "> [{$mob['name']}] 逃げ出した！";
+                $mob_escaped = true;
+                goto mob_turn_end;
+            }
+            $lines[] = "> [{$mob['name']}] 逃走失敗。";
+            // 逃走失敗 → 通常攻撃にフォールバック
+            $chosen = 'attack';
+        }
+
+        if ($chosen === 'guard') {
+            $lines[]    = "> [{$mob['name']}] 守りを固めた。";
+            // guard: 次の被ダメを半減するフラグ（簡易実装: このターンはDEF+50%相当）
+            $mob['_guarding'] = true;
+            goto mob_turn_end;
+        }
+
+        if ($chosen === 'buff') {
+            $gain = rng(2, 6);
+            $mob['atk'] += $gain;
+            $lines[] = "> [{$mob['name']}] 気合を入れた。ATK +{$gain}。";
+            goto mob_turn_end;
+        }
+
+        if ($chosen === 'debuff') {
+            $drain = rng(2, 5);
+            $p['temp_def'] = ($p['temp_def'] ?? 0) - $drain;
+            $lines[] = "> [{$mob['name']}] 揺さぶりをかけた。DEF -{$drain}（一時的）。";
+            goto mob_turn_end;
+        }
+
+        if ($chosen === 'skill') {
+            // skill: ATKの1.5〜2.0倍の強攻撃
+            $skill_mult = rng(150, 200) / 100;
+            $m_base     = max(0, (int)round($mob['atk'] * $skill_mult) + rng(-2, 2));
+            $lines[]    = "> [{$mob['name']}] 渾身の一撃！";
+            $def_judge  = _agi_judge($m_agi, $p_agi);
+            $after      = max(0, $m_base - $p_def);
+            if ($defending) $after = (int)($after / 2);
+            $label      = _judge_label($def_judge);
+            $m_dmg      = in_array($def_judge, [HIT_PARRY, HIT_EX_PARRY])
+                        ? 0 : max(1, (int)round($after * DMG_MULT[$def_judge]));
+            if ($m_dmg > 0) {
+                $defend_note = $defending ? ' [防御半減]' : '';
+                $lines[] = ">  {$m_base} - DEF:{$p_def} = {$after}{$defend_note}" . ($label ? " {$label}" : '') . " → {$m_dmg} ダメージ。";
+            } else {
+                $lines[] = "> " . ($label ? "{$label} " : '') . "見切った！";
+            }
+            $did_attack = true;
+            goto mob_apply_damage;
+        }
+
+        // attack（デフォルト）
+        $m_base    = max(0, $mob['atk'] + rng(-4, 4));
+        $def_judge = _agi_judge($m_agi, $p_agi);
+        $after     = max(0, $m_base - $p_def);
+        if ($defending) $after = (int)($after / 2);
+        $label     = _judge_label($def_judge);
+        $m_dmg     = in_array($def_judge, [HIT_PARRY, HIT_EX_PARRY])
+                   ? 0 : (int)round($after * DMG_MULT[$def_judge]);
+        $did_attack = true;
+
+        if ($m_dmg > 0) {
+            $defend_note = $defending ? ' [防御半減]' : '';
+            $lines[] = "> [{$mob['name']}] 攻撃: {$m_base} - DEF:{$p_def} = {$after}{$defend_note}" . ($label ? " {$label}" : '') . " → {$m_dmg} ダメージ。";
+        } else {
+            $lines[] = $label
+                ? "> {$label} [{$mob['name']}] の攻撃を見切った！"
+                : "> [{$mob['name']}] の攻撃を完全に弾いた。";
+        }
+    }
+
+    mob_apply_damage:
+    // ---- ダメージ適用 ----
+    if ($m_dmg > 0) {
+        $p['hp'] = max(0, $p['hp'] - $m_dmg);
+
+        // 防具耐久減算
+        if (!empty($p['armor'])) {
+            $dur_dmg = max(1, (int)floor($mob['atk'] / 4));
+            $p['armor']['durability'] -= $dur_dmg;
+            if ($p['armor']['durability'] <= 0) {
+                $lines[] = "> 【{$p['armor']['name']}】が破損して使えなくなった！";
+                $p['armor'] = null;
+            } else {
+                $lines[] = "> [{$p['armor']['name']}] 耐久: {$p['armor']['durability']}";
+            }
+        }
+    }
+
+    // ---- 報酬倍率: 防御結果を加算 ----
+    if ($did_attack) {
+        $def_delta = REWARD_DEF_DELTA[$def_judge];
+        if ($def_delta != 0.0) {
+            $p['reward_mult'] = _clamp_mult($p['reward_mult'] + $def_delta);
+            $sign = $def_delta > 0 ? '+' : '';
+            $lines[] = "> [倍率] 防御 {$sign}" . number_format($def_delta, 1) . " → ×" . number_format($p['reward_mult'], 1);
+        }
+    }
+
+    mob_turn_end:
+    return [$mob, $lines, $p, $mob_escaped];
+}
+
+// ---- 内部ヘルパー: 投擲武器のインデックスを返す ----
+function _mob_throw_idx(array $mob): int|false {
+    foreach ($mob['mob_items'] ?? [] as $i => $item) {
+        $m = get_weapon($item['id'] ?? '');
+        if ($m && $m['type'] === 'throw') return $i;
+    }
+    return false;
+}
+
+// ---- 内部ヘルパー: アイテムeffectのインデックスを返す ----
+function _mob_item_idx(array $mob, string $effect): int|false {
+    foreach ($mob['mob_items'] ?? [] as $i => $item) {
+        if (($item['effect'] ?? '') === $effect) return $i;
+    }
+    return false;
+}
+
+// ---- 内部ヘルパー: 回復薬使用判定 ----
+function _mob_try_heal(array $mob, array $lines): bool {
+    $heal_idx = _mob_item_idx($mob, 'heal');
+    if ($heal_idx === false) return false;
+    $hp_rate    = $mob['max_hp'] > 0 ? $mob['hp'] / $mob['max_hp'] : 1.0;
+    $use_chance = (int)(($mob['mob_use_chance'] ?? 0) * (1 - $hp_rate));
+    return rng(1, 100) <= $use_chance;
+}
+
+// ---- 内部ヘルパー: 回復実行（mob配列を返す） ----
+function _mob_do_heal(array $mob, array $lines): array {
+    $heal_idx = _mob_item_idx($mob, 'heal');
+    if ($heal_idx === false) return [$mob, $lines];
+    $item       = $mob['mob_items'][$heal_idx];
+    $heal_val   = $item['value'] ?? 30;
+    $mob['hp']  = min($mob['max_hp'], $mob['hp'] + $heal_val);
+    $lines[]    = "> [{$mob['name']}] [{$item['name']}] を使った。HP +{$heal_val}。(残HP: {$mob['hp']})";
+    array_splice($mob['mob_items'], $heal_idx, 1);
+    return [$mob, $lines];
+}
+
+// ---- 内部ヘルパー: スモーク逃走判定 ----
+function _mob_try_smoke(array $mob): bool {
+    if (_mob_item_idx($mob, 'escape') === false) return false;
+    $weights  = $mob['action_weights'] ?? [];
+    $is_flee  = ($weights['flee'] ?? 0) >= 30;   // flee傾向が主力or副軸
+    $hp_rate  = $mob['max_hp'] > 0 ? $mob['hp'] / $mob['max_hp'] : 1.0;
+    return $is_flee && $hp_rate <= 0.5;
 }
 
 function _find_item_idx(array $p, string $effect): int|false {

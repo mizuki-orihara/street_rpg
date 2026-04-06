@@ -1,135 +1,129 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#030b03">
-    <!-- このwrapper自体をHTTPキャッシュさせない -->
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <title>STREET DOGS</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#030b03">
+  <!-- このwrapper自体をHTTPキャッシュさせない -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>STREET DOGS</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
-        :root {
-            --green: #33ff33;
-            --green-dim: #1a8c1a;
-            --green-dark: #0d3d0d;
-            --bg: #030b03;
-            --border-w: 3px;
-            --footer-h: 40px;
-        }
+    :root {
+      --green:     #33ff33;
+      --green-dim: #1a8c1a;
+      --green-dark:#0d3d0d;
+      --bg:        #030b03;
+      --border-w:  3px;
+      --footer-h:  40px;
+    }
 
-        *, *::before, *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0; padding: 0;
+    }
 
-        html, body {
-            height: 100%;
-            background: #000;
-            color: var(--green);
-            font-family: 'Share Tech Mono', monospace;
-            overflow: hidden;
-        }
+    html, body {
+      height: 100%;
+      background: #000;
+      color: var(--green);
+      font-family: 'Share Tech Mono', monospace;
+      overflow: hidden;
+    }
 
-        #wrapper {
-            position: fixed;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            padding: 3px 3px 0;
-        }
+    #wrapper {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 3px 3px 0;
+    }
 
-        #game-frame {
-            flex: 1;
-            width: 100%;
-            border: var(--border-w) solid var(--green-dim);
-            background: var(--bg);
-            display: block;
-        }
+    #game-frame {
+      flex: 1;
+      width: 100%;
+      border: var(--border-w) solid var(--green-dim);
+      background: var(--bg);
+      display: block;
+    }
 
-        #footer {
-            flex-shrink: 0;
-            height: var(--footer-h);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-left: var(--border-w) solid var(--green-dim);
-            border-right: var(--border-w) solid var(--green-dim);
-            border-bottom: var(--border-w) solid var(--green-dim);
-            background: var(--green-dark);
-        }
+    #footer {
+      flex-shrink: 0;
+      height: var(--footer-h);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-left:  var(--border-w) solid var(--green-dim);
+      border-right: var(--border-w) solid var(--green-dim);
+      border-bottom: var(--border-w) solid var(--green-dim);
+      background: var(--green-dark);
+    }
 
-        #back-link {
-            color: var(--green-dim);
-            text-decoration: none;
-            font-size: 12px;
-            letter-spacing: 0.15em;
-            transition: color 0.15s;
-        }
-
-            #back-link:hover,
-            #back-link:focus {
-                color: var(--green);
-                outline: none;
-            }
-
-            #back-link::before {
-                content: '← ';
-            }
-    </style>
+    #back-link {
+      color: var(--green-dim);
+      text-decoration: none;
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      transition: color 0.15s;
+    }
+    #back-link:hover,
+    #back-link:focus { color: var(--green); outline: none; }
+    #back-link::before { content: '← '; }
+  </style>
 </head>
 <body>
-    <div id="wrapper">
-        <!--
-          src は最初から書いておく。
-          キャッシュバスターのクエリはサーバー側（PHP）の filemtime で対処済み。
-          JS側からsrcを触らないことでiframeの初期化タイミングを確実にする。
-        -->
-        <iframe id="game-frame"
-                src="street_rpg/index.php"
-                allowfullscreen
-                scrolling="no"
-                frameborder="0"
-                title="STREET DOGS"></iframe>
-        <footer id="footer">
-            <a id="back-link" href="http://example.com/">SITE TOP</a>
-        </footer>
-    </div>
+  <div id="wrapper">
+    <!--
+      src は最初から書いておく。
+      キャッシュバスターのクエリはサーバー側（PHP）の filemtime で対処済み。
+      JS側からsrcを触らないことでiframeの初期化タイミングを確実にする。
+    -->
+    <iframe
+      id="game-frame"
+      src="street_rpg/index.php"
+      allowfullscreen
+      scrolling="no"
+      frameborder="0"
+      title="STREET DOGS"
+    ></iframe>
+    <footer id="footer">
+      <a id="back-link" href="https://example.com/">SITE TOP</a>
+    </footer>
+  </div>
 
-    <script>
-        // ============================================================
-        //  キャッシュクリア ? iframeの表示とは完全に切り離して実行
-        //  対象:
-        //    1. Service Worker の登録解除（将来SW導入時に備えて）
-        //    2. Cache API（SW管理キャッシュ）の全削除
-        //
-        //  ※ iframeのHTTPキャッシュ回避は index.php 内の filemtime
-        //     キャッシュバスターに委ねる（JS側でsrcを触らない）
-        // ============================================================
-        (async function clearCaches() {
-            try {
-                if ('serviceWorker' in navigator) {
-                    const regs = await navigator.serviceWorker.getRegistrations();
-                    await Promise.all(regs.map(r => r.unregister()));
-                    if (regs.length > 0) {
-                        console.info('[STREET DOGS] SW unregistered:', regs.length);
-                    }
-                }
-                if ('caches' in window) {
-                    const keys = await caches.keys();
-                    await Promise.all(keys.map(k => caches.delete(k)));
-                    if (keys.length > 0) {
-                        console.info('[STREET DOGS] Cache cleared:', keys);
-                    }
-                }
-            } catch (e) {
-                console.warn('[STREET DOGS] Cache clear failed:', e);
-            }
-        })();
-    </script>
+  <script>
+    // ============================================================
+    //  キャッシュクリア — iframeの表示とは完全に切り離して実行
+    //  対象:
+    //    1. Service Worker の登録解除（将来SW導入時に備えて）
+    //    2. Cache API（SW管理キャッシュ）の全削除
+    //
+    //  ※ iframeのHTTPキャッシュ回避は index.php 内の filemtime
+    //     キャッシュバスターに委ねる（JS側でsrcを触らない）
+    // ============================================================
+    (async function clearCaches() {
+      try {
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+          if (regs.length > 0) {
+            console.info('[STREET DOGS] SW unregistered:', regs.length);
+          }
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+          if (keys.length > 0) {
+            console.info('[STREET DOGS] Cache cleared:', keys);
+          }
+        }
+      } catch (e) {
+        console.warn('[STREET DOGS] Cache clear failed:', e);
+      }
+    })();
+  </script>
 </body>
 </html>

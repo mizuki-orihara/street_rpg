@@ -128,12 +128,10 @@ html, body {
 /* ---- ログ領域 ---- */
 #log-area {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 8px 12px;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  position: relative;  /* sceneの親として機能 */
+  overflow: hidden;     /* スクロールはtextareaに委ねる */
+  position: relative;   /* scene・canvas・textareaの親 */
+  display: flex;
+  flex-direction: column;
 }
 
 /* ---- シーン画像レイヤー ---- */
@@ -181,46 +179,52 @@ html, body {
   background-position: left bottom;
 }
 
-/* テキストログをシーンの上に重ねる */
-#log-content {
+/* ---- テキストログ textarea ---- */
+#log-textarea {
   position: relative;
   z-index: 4;
-  /* 画像がある場合に読みやすくする半透明背景 */
-  /* has-scene クラスが付いた時のみ有効 */
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 12px;
+  color: var(--green);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(13px, 3.2vw, 15px);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-all;
+  caret-color: transparent;   /* カーソル非表示 */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--green-dark) transparent;
 }
-#log-area.has-scene #log-content {
+#log-textarea::-webkit-scrollbar { width: 4px; }
+#log-textarea::-webkit-scrollbar-thumb { background: var(--green-dark); border-radius: 2px; }
+
+/* シーンあり時はテキストを読みやすくする */
+#log-area.has-scene #log-textarea {
   background: linear-gradient(
     to bottom,
     rgba(3,11,3,0.0) 0%,
-    rgba(3,11,3,0.7) 30%,
-    rgba(3,11,3,0.8) 100%
+    rgba(3,11,3,0.72) 28%,
+    rgba(3,11,3,0.82) 100%
   );
-  min-height: 100%;
-  padding: 8px 0;
 }
-#log-area::-webkit-scrollbar { width: 4px; }
-#log-area::-webkit-scrollbar-thumb { background: var(--green-dark); border-radius: 2px; }
 
-.line {
-  display: block;
-  white-space: pre-wrap;
-  word-break: break-all;
-  opacity: 0;
-  animation: fadeIn 0.05s forwards;
-  font-size: clamp(13px, 3.2vw, 15px);
-  line-height: 1.65;
+/* ---- CRT canvas オーバーレイ ---- */
+#crt-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
 }
-@keyframes fadeIn { to { opacity: 1; } }
-
-.line.prompt { color: var(--green); }
-.line.info   { color: var(--green-dim); }
-.line.good   { color: #33ff33; text-shadow: var(--crt-glow); }
-.line.bad    { color: var(--red); }
-.line.warn   { color: var(--amber); }
-.line.cyan   { color: var(--cyan); }
-.line.header { color: var(--green); text-shadow: var(--crt-glow); }
-.line.dim    { color: #1a4d1a; }
-.line.blank  { height: 0.7em; display: block; }
 
 /* ---- コマンドエリア ---- */
 #cmd-area {
@@ -290,6 +294,30 @@ html, body {
   opacity: 0.3;
   cursor: not-allowed;
   pointer-events: none;
+}
+
+/* ---- 名前入力フィールド（クリア時） ---- */
+.name-input {
+  background: transparent;
+  border: 1px solid var(--green);
+  color: var(--green);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(14px, 3.5vw, 16px);
+  padding: 0 12px;
+  min-height: var(--btn-min-h);
+  min-width: 180px;
+  max-width: 260px;
+  outline: none;
+  caret-color: var(--green);
+  box-shadow: var(--crt-glow);
+}
+.name-input::placeholder {
+  color: var(--green-dim);
+  opacity: 0.6;
+}
+.name-input:focus {
+  border-color: var(--green);
+  box-shadow: var(--crt-glow);
 }
 
 /* ---- レスポンシブ ---- */

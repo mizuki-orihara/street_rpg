@@ -1,13 +1,14 @@
-id,name,effect,value,price_min,price_max,desc,shop
-heal_s,回復薬(小),heal,30,40,80,HP +30,item
-heal_m,回復薬(中),heal,70,100,160,HP +70,item
-heal_l,回復薬(大),heal,150,200,350,HP +150,item
-mp_pot,MPポーション,mp,30,60,120,MP +30,item
-smoke,スモークボム,escape,0,80,150,戦闘から逃走,item
-boost,強化剤,temp_atk,10,120,220,次戦ATK +10,item
-tape,防護テープ,temp_def,10,100,180,次戦DEF +10,item
-gold_fever,金運の護符,gold_fever,5,200,400,5日間 獲得金×2,item
-supp_atk,ATKサプリ,perm_atk,2,280,380,ATK +2（永続）,food
-supp_def,DEFサプリ,perm_def,2,280,380,DEF +2（永続）,food
-supp_agi,AGIサプリ,perm_agi,3,300,420,AGI +3（永続）,food
-supp_luk,LUKサプリ,perm_luk,3,250,350,LUK +3（永続）,food
+id,name,effect,value,price_min,price_max,desc,shop,enemy_use
+heal_s,回復薬(小),heal,30,40,80,HP +30,item,1
+heal_m,回復薬(中),heal,70,100,160,HP +70,item,1
+heal_l,回復薬(大),heal,150,200,350,HP +150,item,1
+mp_pot,MPポーション,mp,30,60,120,MP +30,item,0
+smoke,スモークボム,escape,0,80,150,戦闘から逃走,item,1
+boost,強化剤,temp_atk,10,120,220,次戦ATK +10,item,0
+tape,防護テープ,temp_def,10,100,180,次戦DEF +10,item,0
+gold_fever,金運の護符,gold_fever,5,200,400,5日間 獲得金×2,item,0
+supp_atk,ATKサプリ,perm_atk,2,280,380,ATK +2（永続）,food,0
+supp_def,DEFサプリ,perm_def,2,280,380,DEF +2（永続）,food,0
+supp_agi,AGIサプリ,perm_agi,3,300,420,AGI +3（永続）,food,0
+supp_luk,LUKサプリ,perm_luk,3,250,350,LUK +3（永続）,food,0
+omamori,お守り,omamori,0,0,0,ボス戦敗北時に自動発動。所持金×10%（最低500・最大3000）を失い生還。,item,0

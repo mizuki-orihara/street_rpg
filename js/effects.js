@@ -9,16 +9,16 @@ const SAVE_API = 'api/save.php';
 let G = {
     screen: 'title',
     player: null,
-    mob: null,
+    mob:    null,
     pendingStats: null,
     rerolls: 0,
     innCost: 0,
     weaponStock: [],
     itemStock: [],
     // セーブ関連
-    activeSlot: null,   // 現在プレイ中のstoryスロット ('story_1'等)
-    storySlots: [],     // 起動時に取得したスロット概要
-    uuid: null,
+    activeSlot:  null,   // 現在プレイ中のstoryスロット ('story_1'等)
+    storySlots:  [],     // 起動時に取得したスロット概要
+    uuid:        null,
 };
 
 // ============================================================
@@ -28,11 +28,11 @@ let G = {
 // ---- 設定 ----
 const LOG_MAX_LINES = 40;   // 20 / 40 / 60 で切替可（将来: 設定画面から変更）
 
-const logArea = () => document.getElementById('log-area');
+const logArea     = () => document.getElementById('log-area');
 const logTextarea = () => document.getElementById('log-textarea');
 
 let typeQueue = [];
-let typing = false;
+let typing    = false;
 let _logLines = [];   // 現在のログ行を配列で管理
 
 function print(text, cls = 'prompt', delay = 0) {
@@ -60,8 +60,8 @@ function printLine(text, delay) {
             if (_logLines.length > LOG_MAX_LINES) {
                 _logLines = _logLines.slice(_logLines.length - LOG_MAX_LINES);
             }
-            logTextarea().value = _logLines.join('
-');
+            logTextarea().value = _logLines.join("\n");
+
             scrollBottom();
             resolve();
         }, delay);
@@ -81,7 +81,7 @@ function clearLog() {
     _logLines = [];
     logTextarea().value = '';
     typeQueue = [];
-    typing = false;
+    typing    = false;
     clearScene();
 }
 
@@ -91,21 +91,21 @@ function clearLog() {
 
 // 背景画像テーブル（素材未配置時は空文字のまま → 非表示）
 const SCENE_BG = {
-    map_1: 'img/bg/alley.png',
-    map_2: 'img/bg/downtown.png',
-    map_3: 'img/bg/docks.png',
-    fight_1: 'img/bg/alley_fight.png',
-    fight_2: 'img/bg/downtown_fight.png',
-    fight_3: 'img/bg/docks_fight.png',
-    boss_1: 'img/bg/alley_boss.png',
-    boss_2: 'img/bg/downtown_boss.png',
-    boss_3: 'img/bg/docks_boss.png',
+    map_1:      'img/bg/alley.png',
+    map_2:      'img/bg/downtown.png',
+    map_3:      'img/bg/docks.png',
+    fight_1:    'img/bg/alley_fight.png',
+    fight_2:    'img/bg/downtown_fight.png',
+    fight_3:    'img/bg/docks_fight.png',
+    boss_1:     'img/bg/alley_boss.png',
+    boss_2:     'img/bg/downtown_boss.png',
+    boss_3:     'img/bg/docks_boss.png',
     restaurant: 'img/bg/restaurant.png',   // 宿→飲食店
-    dojo: 'img/bg/dojo.png',
-    weapon: 'img/bg/weapon_shop.png',
-    armor: 'img/bg/armor_shop.png',
-    item: 'img/bg/item_shop.png',
-    informer: 'img/bg/informer.png',     // 情報屋イベント
+    dojo:       'img/bg/dojo.png',
+    weapon:     'img/bg/weapon_shop.png',
+    armor:      'img/bg/armor_shop.png',
+    item:       'img/bg/item_shop.png',
+    informer:   'img/bg/informer.png',     // 情報屋イベント
 };
 
 // ボス画像テーブル
@@ -117,17 +117,17 @@ const BOSS_IMG = {
 
 // プレイヤー画像
 const PLAYER_IMG = {
-    normal: 'img/player/normal.png',
+    normal:  'img/player/normal.png',
     damaged: 'img/player/damaged.png',
 };
 
 // NPCプール定義（入店ごとにランダム選択）
 const NPC_POOL = {
     restaurant: ['img/npc/ff_staff_a.png', 'img/npc/ff_staff_b.png', 'img/npc/ff_staff_c.png'],
-    shop: ['img/npc/shop_a.png', 'img/npc/shop_b.png', 'img/npc/shop_c.png'],
-    item: ['img/npc/item_staff_a.png', 'img/npc/item_staff_b.png'],
-    dojo: ['img/npc/master.png'],
-    informer: ['img/npc/informer.png'],
+    shop:       ['img/npc/shop_a.png',     'img/npc/shop_b.png',     'img/npc/shop_c.png'],
+    item:       ['img/npc/item_staff_a.png', 'img/npc/item_staff_b.png'],
+    dojo:       ['img/npc/master.png'],
+    informer:   ['img/npc/informer.png'],
 };
 
 /** NPCプールからランダム1枚を返す */
@@ -170,8 +170,8 @@ function clearLayer(id) {
  */
 function setScene({ bgKey = '', mob = '', player = '' } = {}) {
     const bgSrc = SCENE_BG[bgKey] || '';
-    setLayer('scene-bg', bgSrc);
-    setLayer('scene-mob', mob);
+    setLayer('scene-bg',     bgSrc);
+    setLayer('scene-mob',    mob);
     setLayer('scene-player', player);
     // 画像が1枚でもあればlog-areaにhas-sceneを付与
     if (bgSrc || mob || player) {
@@ -213,27 +213,29 @@ function disableCommands() {
 function updateHUD(p) {
     if (!p) return;
     G.player = p;
-    const hpPct = Math.round(p.hp / p.max_hp * 100);
-    const hpCls = hpPct <= 25 ? 'danger' : hpPct <= 50 ? 'warn' : '';
+    const hpPct  = Math.round(p.hp / p.max_hp * 100);
+    const hpCls  = hpPct <= 25 ? 'danger' : hpPct <= 50 ? 'warn' : '';
     const fevDays = p.gold_fever_days || 0;
-    const fevCls = fevDays > 0 ? 'active' : '';
+    const fevCls  = fevDays > 0 ? 'active' : '';
     const armorBonus = p.armor ? p.armor.def_bonus : 0;
-    const effDef = p.def + armorBonus + (p.temp_def || 0);
-    const armorName = p.armor ? p.armor.name : 'なし';
+    const effDef     = p.def + armorBonus + (p.temp_def || 0);
+    const armorName  = p.armor ? p.armor.name : 'なし';
     document.getElementById('status-bar').innerHTML = `
       <div class="status-row">
         <span class="stat-item ${hpCls}">HP:<span>${p.hp}/${p.max_hp}</span></span>
         <span class="stat-item">MP:<span>${p.mp}/${p.max_mp}</span></span>
         <span class="stat-item">¥<span>${p.money.toLocaleString()}</span></span>
         <span class="stat-item">DAY:<span>${p.day || 1}</span></span>
-        <span class="stat-item ${fevCls}">護符:<span>${fevDays > 0 ? '残' + fevDays + '日' : 'OFF'}</span></span>
+        <span class="stat-item ${fevCls}">護符:<span>${fevDays > 0 ? '残'+fevDays+'日' : 'OFF'}</span></span>
       </div>
       <div class="status-row">
         <span class="stat-item">ATK:<span>${p.atk}</span></span>
-        <span class="stat-item">DEF:<span>${effDef}${armorBonus > 0 ? '(+' + armorBonus + ')' : ''}</span></span>
+        <span class="stat-item">DEF:<span>${effDef}${armorBonus > 0 ? '(+'+armorBonus+')' : ''}</span></span>
         <span class="stat-item">AGI:<span>${p.agi}</span></span>
         <span class="stat-item">LUK:<span>${p.luk}</span></span>
         <span class="stat-item">STG:<span>${p.stage}</span></span>
+        ${(p.ex_stage||0)>0 ? `<span class="stat-item warn">EX:<span>${p.ex_stage}</span></span>` : ''}
+        ${(p.ex_depth_max||0)>0 ? `<span class="stat-item">BEST EX:<span>${p.ex_depth_max}</span></span>` : ''}
         <span class="stat-item">武器:<span>${p.weapons.length}</span></span>
         <span class="stat-item">防具:<span>${p.armor ? p.armor.name + ' [' + (p.armor.durability ?? '?') + ']' : '—'}</span></span>
         <span class="stat-item">道具:<span>${p.items.length}</span></span>
@@ -305,7 +307,7 @@ async function showTitle() {
     // セーブデータ取得
     const saveData = await saveApi('init');
     if (saveData?.ok) {
-        G.uuid = saveData.uuid;
+        G.uuid       = saveData.uuid;
         G.storySlots = saveData.story;
     }
 
@@ -314,7 +316,7 @@ async function showTitle() {
 
     setTimeout(() => {
         const btns = [
-            { label: '[ NEW GAME ]', action: () => startNewGame(false) },
+            { label: '[ NEW GAME ]',  action: () => startNewGame(false) },
         ];
         if (clearedSlots.length > 0) {
             btns.push({ label: '[ NG+ ]', action: startNgPlus, cls: 'amber' });
@@ -359,13 +361,13 @@ function showSlotSelect(isNgPlus, srcSlot) {
         if (s.empty) {
             print(`> ${s.slot.toUpperCase()}  [空]`, 'dim');
         } else {
-            print(`> ${s.slot.toUpperCase()}  ST${s.stage} DAY${s.day}  ¥${s.money.toLocaleString()}  ${s.updated_at ? s.updated_at.slice(0, 10) : ''}${s.ng_plus > 0 ? '  NG+' + s.ng_plus : ''}`, 'prompt');
+            print(`> ${s.slot.toUpperCase()}  ST${s.stage} DAY${s.day}  ¥${s.money.toLocaleString()}  ${s.updated_at ? s.updated_at.slice(0,10) : ''}${s.ng_plus > 0 ? '  NG+'+s.ng_plus : ''}`, 'prompt');
         }
     });
     printBlank();
     const btns = G.storySlots.map(s => ({
-        label: s.slot.replace('story_', 'SLOT '),
-        cls: s.empty ? '' : 'amber',
+        label:  s.slot.replace('story_', 'SLOT '),
+        cls:    s.empty ? '' : 'amber',
         action: async () => {
             G.activeSlot = s.slot;
             if (isNgPlus && srcSlot) {
@@ -393,8 +395,8 @@ function startNgPlus() {
     });
     printBlank();
     const btns = cleared.map(s => ({
-        label: s.slot.replace('story_', 'SLOT ') + (s.ng_plus > 0 ? ' NG+' + s.ng_plus : ''),
-        cls: 'amber',
+        label:  s.slot.replace('story_', 'SLOT ') + (s.ng_plus > 0 ? ' NG+'+s.ng_plus : ''),
+        cls:    'amber',
         action: () => startNewGame(true, s.slot),
     }));
     btns.push({ label: '[戻る]', action: showTitle });
@@ -425,11 +427,11 @@ function showContinueSlots() {
     const filled = G.storySlots.filter(s => !s.empty);
     filled.forEach(s => {
         print(`> ${s.slot.toUpperCase()}  ST${s.stage} DAY${s.day}  HP:${s.hp}/${s.max_hp}  ¥${s.money.toLocaleString()}`, 'prompt');
-        print(`>   保存日時: ${s.updated_at ? s.updated_at.slice(0, 16).replace('T', ' ') : '不明'}${s.ng_plus > 0 ? '  NG+' + s.ng_plus : ''}`, 'dim');
+        print(`>   保存日時: ${s.updated_at ? s.updated_at.slice(0,16).replace('T',' ') : '不明'}${s.ng_plus > 0 ? '  NG+'+s.ng_plus : ''}`, 'dim');
     });
     printBlank();
     const btns = filled.map(s => ({
-        label: s.slot.replace('story_', 'SLOT '),
+        label:  s.slot.replace('story_', 'SLOT '),
         action: async () => {
             disableCommands();
             const data = await saveApi('load', { slot: s.slot });
@@ -467,25 +469,25 @@ async function doRoll() {
 
     const s = data.stats;
     const entries = [
-        ['hp', s.hp, 100, 250],
-        ['mp', s.mp, 10, 120],
-        ['atk', s.atk, 16, 32],
-        ['def', s.def, 16, 32],
-        ['agi', s.agi, 16, 32],
-        ['luk', s.luk, 16, 32],
+        ['hp',    s.hp,    100, 250],
+        ['mp',    s.mp,    10,  120],
+        ['atk',   s.atk,   16,  32],
+        ['def',   s.def,   16,  32],
+        ['agi',   s.agi,   16,  32],
+        ['luk',   s.luk,   16,  32],
         ['money', s.money, 100, 2500],
     ];
 
     print(`> ──── ROLL #${G.rerolls} ────`, 'dim');
     entries.forEach(([key, val, min, max], i) => {
-        const filled = Math.round((val - min) / (max - min) * 20);
-        const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
-        const label = key.toUpperCase().padEnd(6);
-        const dispVal = key === 'money' ? ('¥' + val.toLocaleString()).padStart(8) : String(val).padStart(4);
+        const filled   = Math.round((val - min) / (max - min) * 20);
+        const bar      = '█'.repeat(filled) + '░'.repeat(20 - filled);
+        const label    = key.toUpperCase().padEnd(6);
+        const dispVal  = key === 'money' ? ('¥' + val.toLocaleString()).padStart(8) : String(val).padStart(4);
         print(`> ${label} ${dispVal}  [${bar}]`, 'prompt', i * 40);
     });
 
-    const ratingColor = { S: 'bad', A: 'warn', B: 'good', C: 'prompt', D: 'dim' };
+    const ratingColor = { S:'bad', A:'warn', B:'good', C:'prompt', D:'dim' };
     print(`> `, 'blank', entries.length * 40 + 20);
     print(`> SCORE: ${data.score}  RATING: [ ${data.rating} ]`, ratingColor[data.rating] || 'prompt', entries.length * 40 + 60);
     print(`> ${data.comment}`, 'info', entries.length * 40 + 100);
@@ -494,7 +496,7 @@ async function doRoll() {
     setTimeout(() => {
         setCommands('このキャラで始めるか？', [
             { label: '[ CONFIRM ]', action: confirmChar, cls: 'amber' },
-            { label: '[ REROLL ]', action: doRoll },
+            { label: '[ REROLL ]',  action: doRoll },
         ]);
     }, entries.length * 40 + 300);
 }
@@ -524,8 +526,16 @@ async function showMap() {
     const st = data.stage_info;
 
     clearLog();
-    setScene({ bgKey: `map_${data.player.stage}` });
-    print(`> ═══ STAGE ${data.player.stage}: ${st.name} ═══`, 'header');
+    const isEX    = (data.player.ex_stage || 0) > 0;
+    const exDepth = data.player.ex_stage || 0;
+    const bgKey   = isEX ? `fight_3` : `map_${data.player.stage}`;  // EX中はST3背景流用
+    setScene({ bgKey });
+    if (isEX) {
+        print(`> ════ EX${exDepth} : STAGE ${data.player.stage} ════`, 'header');
+        print(`> 最大到達EX: ${data.player.ex_depth_max || 0}`, 'warn');
+    } else {
+        print(`> ═══ STAGE ${data.player.stage}: ${st.name} ═══`, 'header');
+    }
     printBlank();
 
     data.nodes.forEach((node, i) => {
@@ -542,19 +552,17 @@ async function showMap() {
     printBlank();
 
     setTimeout(() => {
-        const bossNode = data.nodes.find(n => n.id === 'boss');
+        const bossNode  = data.nodes.find(n => n.id === 'boss');
         const bossReady = bossNode && bossNode.boss_ready;
         setCommands('どこへ向かう？', [
-            { label: '[FIGHT]', action: startFight },
-            { label: '[EAT]', action: startInn },
-            { label: '[TRAIN]', action: startDojo },
+            { label: '[FIGHT]',  action: startFight },
+            { label: '[EAT]',    action: startInn },
+            { label: '[TRAIN]',  action: startDojo },
             { label: '[WEAPON]', action: startWeaponShop },
-            { label: '[ARMOR]', action: startArmorShop },
-            { label: '[ITEM]', action: startItemShop },
-            {
-                label: bossReady ? '[BOSS]' : '[BOSS 🔒]',
-                action: startBoss, cls: 'danger', disabled: !bossReady
-            },
+            { label: '[ARMOR]',  action: startArmorShop },
+            { label: '[ITEM]',   action: startItemShop },
+            { label: isEX ? `[EX BOSS]` : (bossReady ? '[BOSS]' : '[BOSS 🔒]'),
+              action: startBoss, cls: 'danger', disabled: !isEX && !bossReady },
             { label: '[STATUS]', action: showStatus },
         ]);
     }, 60 + data.nodes.length * 40 + 400);
@@ -564,11 +572,11 @@ function showStatus() {
     const p = G.player;
     if (!p) return;
     const armorBonus = p.armor ? p.armor.def_bonus : 0;
-    const effDef = p.def + armorBonus + (p.temp_def || 0);
+    const effDef     = p.def + armorBonus + (p.temp_def || 0);
     clearLog();
     print('> ──── STATUS ────', 'cyan');
     print(`> HP  ${p.hp}/${p.max_hp}  MP  ${p.mp}/${p.max_mp}`, 'prompt');
-    print(`> ATK ${p.atk}  DEF ${effDef}${armorBonus > 0 ? '(素' + p.def + '+防具' + armorBonus + ')' : ''}  AGI ${p.agi}  LUK ${p.luk}`, 'prompt');
+    print(`> ATK ${p.atk}  DEF ${effDef}${armorBonus > 0 ? '(素'+p.def+'+防具'+armorBonus+')' : ''}  AGI ${p.agi}  LUK ${p.luk}`, 'prompt');
     print(`> ¥${p.money.toLocaleString()}  STAGE ${p.stage}  DAY ${p.day || 1}`, 'prompt');
     print(`> 防具: ${p.armor ? p.armor.name + ' (DEF+' + p.armor.def_bonus + ' 耐久:' + (p.armor.durability ?? '?') + ')' : 'なし'}`, 'info');
     if (p.weapons.length) print(`> 武器: ${p.weapons.map(w => w.name).join(', ')}`, 'info');
@@ -578,14 +586,14 @@ function showStatus() {
     if (p.items.length > 0) {
         print(`> ── アイテム (${p.items.length}/3) ──`, 'cyan');
         p.items.forEach((it, i) => {
-            print(`> [${i + 1}] ${it.name}  ${it.effect.startsWith('perm') ? '永続強化' : it.effect === 'escape' ? '戦闘用' : '使用可'}`, 'prompt', i * 30);
+            print(`> [${i+1}] ${it.name}  ${it.effect.startsWith('perm') ? '永続強化' : it.effect === 'escape' ? '戦闘用' : '使用可'}`, 'prompt', i * 30);
         });
         printBlank();
         const btns = p.items.map((it, i) => ({
-            label: `[使う: ${it.name}]`,
-            action: () => doUseItem(i),
+            label:    `[使う: ${it.name}]`,
+            action:   () => doUseItem(i),
             disabled: it.effect === 'escape',  // スモークボムは戦闘中のみ
-            cls: it.effect.startsWith('perm') ? 'amber' : '',
+            cls:      it.effect.startsWith('perm') ? 'amber' : '',
         }));
         btns.push({ label: '[閉じる]', action: showMap });
         setCommands('どれを使う？', btns);
@@ -618,8 +626,8 @@ async function startFight() {
     G.mob = data.mob;
     // シーンセット（MOB画像はAPIから返ったimgパスを使用）
     setScene({
-        bgKey: `fight_${data.player.stage}`,
-        mob: data.mob.img ? `img/${data.mob.img}` : '',
+        bgKey:  `fight_${data.player.stage}`,
+        mob:    data.mob.img ? `img/${data.mob.img}` : '',
         player: PLAYER_IMG.normal,
     });
     if (data.mob.is_jk) {
@@ -634,36 +642,32 @@ async function startFight() {
 }
 
 function showFightCommands() {
-    const p = G.player;
-    const mob = G.mob;
-    const isJK = mob && mob.is_jk;
-    const hasThrow = p.weapons.some(w => ['knife', 'bullet'].includes(w.id));
-    const hasMp = p.mp >= 10;
+    const p        = G.player;
+    const mob      = G.mob;
+    const isJK     = mob && mob.is_jk;
+    const hasThrow = p.weapons.some(w => ['knife','bullet'].includes(w.id));
+    const hasMp    = p.mp >= 10;
     const hasSmoke = p.items.some(it => it.effect === 'escape');
 
     if (isJK) {
         setCommands(`【${mob.name}】 ─ 手を出すな`, [
             { label: '[ATTACK ⚠]', action: () => doFightAction('attack'), cls: 'danger' },
-            { label: '[THROW ⚠]', action: () => doFightAction('throw'), cls: 'danger', disabled: !hasThrow },
-            { label: '[SKILL ⚠]', action: () => doFightAction('skill'), cls: 'danger', disabled: !hasMp },
-            { label: '[DEFEND]', action: () => doFightAction('defend') },
-            {
-                label: hasSmoke ? '[SMOKE]' : '[SMOKE 🔒]',
-                action: () => doFightAction('item'), disabled: !hasSmoke
-            },
-            { label: '[RUN]', action: () => doFightAction('run') },
+            { label: '[THROW ⚠]',  action: () => doFightAction('throw'),  cls: 'danger', disabled: !hasThrow },
+            { label: '[SKILL ⚠]',  action: () => doFightAction('skill'),  cls: 'danger', disabled: !hasMp },
+            { label: '[DEFEND]',   action: () => doFightAction('defend') },
+            { label: hasSmoke ? '[SMOKE]' : '[SMOKE 🔒]',
+                                   action: () => doFightAction('item'),   disabled: !hasSmoke },
+            { label: '[RUN]',      action: () => doFightAction('run') },
         ]);
     } else {
         setCommands(`vs 【${mob.name}】 HP:${mob.hp}/${mob.max_hp}`, [
-            { label: '[ATTACK]', action: () => doFightAction('attack') },
-            { label: '[THROW]', action: () => doFightAction('throw'), disabled: !hasThrow },
-            { label: '[SKILL]', action: () => doFightAction('skill'), disabled: !hasMp },
-            { label: '[DEFEND]', action: () => doFightAction('defend') },
-            {
-                label: hasSmoke ? '[SMOKE]' : '[SMOKE 🔒]',
-                action: () => doFightAction('item'), disabled: !hasSmoke
-            },
-            { label: '[RUN]', action: () => doFightAction('run') },
+            { label: '[ATTACK]',                    action: () => doFightAction('attack') },
+            { label: '[THROW]',                     action: () => doFightAction('throw'),  disabled: !hasThrow },
+            { label: '[SKILL]',                     action: () => doFightAction('skill'),  disabled: !hasMp },
+            { label: '[DEFEND]',                    action: () => doFightAction('defend') },
+            { label: hasSmoke ? '[SMOKE]' : '[SMOKE 🔒]',
+                                                    action: () => doFightAction('item'),   disabled: !hasSmoke },
+            { label: '[RUN]',                       action: () => doFightAction('run') },
         ]);
     }
 }
@@ -684,23 +688,23 @@ async function doFightAction(cmd) {
     }
 
     data.lines.forEach((l, i) => {
-        const cls = l.includes('ダメージ') ? 'warn'
-            : l.includes('倒した') ? 'good'
-                : l.includes('力尽き') ? 'bad'
-                    : l.includes('通報') ? 'bad'
-                        : l.includes('罰金') ? 'bad'
-                            : l.includes('警察') ? 'bad'
-                                : l.includes('回避') ? 'cyan'
-                                    : l.includes('クリティカル') ? 'good'
-                                        : l.includes('見切り') ? 'cyan'
-                                            : 'prompt';
+        const cls = l.includes('ダメージ')    ? 'warn'
+                  : l.includes('倒した')      ? 'good'
+                  : l.includes('力尽き')      ? 'bad'
+                  : l.includes('通報')        ? 'bad'
+                  : l.includes('罰金')        ? 'bad'
+                  : l.includes('警察')        ? 'bad'
+                  : l.includes('回避')        ? 'cyan'
+                  : l.includes('クリティカル') ? 'good'
+                  : l.includes('見切り')      ? 'cyan'
+                  : 'prompt';
         print(l, cls, i * 60);
     });
 
     // 連打防止: 次コマンド表示までの最低待機時間を延長
     const baseDelay = data.lines.length * 60;
-    const antiSpam = 700;   // ms — ボタン再表示の最低待機
-    const delay = Math.max(baseDelay, antiSpam) + 200;
+    const antiSpam  = 700;   // ms — ボタン再表示の最低待機
+    const delay     = Math.max(baseDelay, antiSpam) + 200;
 
     setTimeout(() => {
         switch (data.result) {
@@ -723,6 +727,24 @@ async function doFightAction(cmd) {
                     setTimeout(() => showMap(), 800);
                 }
                 break;
+            case 'ex_win':
+                printBlank();
+                print(`> EX${data.player.ex_stage - 1} クリア。ST1へ。`, 'good');
+                setTimeout(() => showMap(), 1200);
+                break;
+            case 'omamori_save':
+                printBlank();
+                print('> マップに戻る。', 'warn');
+                setTimeout(() => showMap(), 1000);
+                break;
+            case 'mob_escape':
+                printBlank();
+                print('> 敵が逃げ出した。', 'warn');
+                setTimeout(() => showMap(), 800);
+                break;
+            case 'game_over_poor':
+                setTimeout(() => gameOverPoor(data.player), 800);
+                break;
             case 'lose': gameOver(); break;
             case 'jk_penalty':
                 printBlank();
@@ -738,7 +760,7 @@ async function doFightAction(cmd) {
                 printBlank();
                 setTimeout(() => showMap(), 1200);
                 break;
-            case 'game_clear': setTimeout(() => gameClear(), 1000); break;
+            case 'game_clear': setTimeout(() => enterEX(data.player), 1000); break;
             default: setTimeout(() => showFightCommands(), antiSpam); break;
         }
     }, delay);
@@ -754,14 +776,22 @@ async function startBoss() {
     if (!data) return;
     updateHUD(data.player);
     G.mob = data.mob;
+    const isEX = data.mob.is_ex;
     setScene({
-        bgKey: `boss_${data.player.stage}`,
-        mob: BOSS_IMG[data.player.stage] || '',
+        bgKey:  isEX ? 'boss_3' : `boss_${data.player.stage}`,
+        mob:    isEX ? (PLAYER_IMG.normal) : (BOSS_IMG[data.player.stage] || ''),
         player: PLAYER_IMG.normal,
     });
-    print('> ───────────────────────────', 'dim');
-    print(`> BOSS ENCOUNTER`, 'bad');
-    print(`> 【${data.mob.name}】`, 'bad');
+    print('> ───────────────────────────', isEX ? 'bad' : 'dim');
+    if (isEX) {
+        const exN = data.player.ex_stage || 1;
+        print(`> EX${exN} BOSS`, 'bad');
+        print(`> 【${data.mob.name}】`, 'bad');
+        print(`> ── お前自身だ。`, 'warn');
+    } else {
+        print(`> BOSS ENCOUNTER`, 'bad');
+        print(`> 【${data.mob.name}】`, 'bad');
+    }
     print(`> HP: ${data.mob.hp}  ATK: ${data.mob.atk}  DEF: ${data.mob.def}`, 'info');
     print('> ───────────────────────────', 'dim');
     printBlank();
@@ -816,7 +846,7 @@ async function startFoodShop() {
     print(`> アイテム所持: ${p.items.length}/3`, 'dim');
     printBlank();
     data.stock.forEach((it, i) => {
-        print(`> [${i + 1}] ${it.name.padEnd(12)} ¥${String(it.price).padStart(5)}  ${it.desc}`, 'prompt', i * 50);
+        print(`> [${i+1}] ${it.name.padEnd(12)} ¥${String(it.price).padStart(5)}  ${it.desc}`, 'prompt', i * 50);
     });
     printBlank();
     if (p.items.length > 0)
@@ -825,10 +855,10 @@ async function startFoodShop() {
 
     const full = p.items.length >= 3;
     const btns = data.stock.map((it, i) => ({
-        label: `[買う${i + 1}: ¥${it.price}]`,
-        action: () => doBuyFood(i),
+        label:    `[買う${i+1}: ¥${it.price}]`,
+        action:   () => doBuyFood(i),
         disabled: full || p.money < it.price,
-        cls: 'amber',
+        cls:      'amber',
     }));
     btns.push({ label: '[戻る]', action: startInn });
     setTimeout(() => setCommands(full ? 'アイテム満杯' : 'お土産を買う？', btns), data.stock.length * 50 + 300);
@@ -854,7 +884,7 @@ async function startDojo() {
     const data = await api('dojo_info');
     if (!data) return;
     updateHUD(data.player);
-    const p = data.player;
+    const p    = data.player;
     const cost = data.cost;   // action.phpでdojo_cost*4済みの値が返る
 
     print('> 修練所に入った。', 'info');
@@ -898,9 +928,9 @@ async function startWeaponShop() {
     printBlank();
 
     data.stock.forEach((w, i) => {
-        const dmgStr = w.dmg[1] > 0 ? `DMG:${w.dmg[0]}-${w.dmg[1]}` : '投擲専用';
+        const dmgStr   = w.dmg[1] > 0 ? `DMG:${w.dmg[0]}-${w.dmg[1]}` : '投擲専用';
         const throwStr = w.throw_dmg ? ` 投:${w.throw_dmg[0]}-${w.throw_dmg[1]}` : '';
-        print(`> [${i + 1}] ${w.name.padEnd(8)} ¥${String(w.price).padStart(5)}  ${dmgStr}${throwStr}`, 'prompt', i * 50);
+        print(`> [${i+1}] ${w.name.padEnd(8)} ¥${String(w.price).padStart(5)}  ${dmgStr}${throwStr}`, 'prompt', i * 50);
         print(`>     ${w.desc}`, 'info', i * 50 + 20);
     });
 
@@ -908,12 +938,12 @@ async function startWeaponShop() {
     print(`> 現在の武装: ${data.player.weapons.length > 0 ? data.player.weapons.map(w => w.name).join(' / ') : 'なし'}`, 'dim');
     printBlank();
 
-    const p = data.player;
+    const p    = data.player;
     const btns = data.stock.map((w, i) => ({
-        label: `[買う${i + 1}: ¥${w.price}]`,
-        action: () => doBuyWeapon(i),
+        label:    `[買う${i+1}: ¥${w.price}]`,
+        action:   () => doBuyWeapon(i),
         disabled: p.money < w.price,
-        cls: 'amber',
+        cls:      'amber',
     }));
     btns.push({ label: '[戻る]', action: showMap });
     setTimeout(() => setCommands('どれを買う？', btns), data.stock.length * 50 + 300);
@@ -944,19 +974,19 @@ async function startItemShop() {
     printBlank();
 
     data.stock.forEach((it, i) => {
-        print(`> [${i + 1}] ${it.name.padEnd(10)} ¥${String(it.price).padStart(5)}  ${it.desc}`, 'prompt', i * 50);
+        print(`> [${i+1}] ${it.name.padEnd(10)} ¥${String(it.price).padStart(5)}  ${it.desc}`, 'prompt', i * 50);
     });
 
     printBlank();
     print(`> 所持道具: ${data.player.items.length > 0 ? data.player.items.map(i => i.name).join(' / ') : 'なし'}`, 'dim');
     printBlank();
 
-    const p = data.player;
+    const p    = data.player;
     const btns = data.stock.map((it, i) => ({
-        label: `[買う${i + 1}: ¥${it.price}]`,
-        action: () => doBuyItem(i),
+        label:    `[買う${i+1}: ¥${it.price}]`,
+        action:   () => doBuyItem(i),
         disabled: p.money < it.price,
-        cls: 'amber',
+        cls:      'amber',
     }));
     btns.push({ label: '[戻る]', action: showMap });
     setTimeout(() => setCommands('どれを買う？', btns), data.stock.length * 50 + 300);
@@ -992,16 +1022,16 @@ async function startArmorShop() {
     printBlank();
 
     data.stock.forEach((a, i) => {
-        print(`> [${i + 1}] ${a.name.padEnd(10)} ¥${String(a.price).padStart(5)}  DEF+${a.def_bonus}`, 'prompt', i * 50);
+        print(`> [${i+1}] ${a.name.padEnd(10)} ¥${String(a.price).padStart(5)}  DEF+${a.def_bonus}  耐久:${a.durability}`, 'prompt', i * 50);
         print(`>     ${a.desc}`, 'info', i * 50 + 20);
     });
 
     printBlank();
     const btns = data.stock.map((a, i) => ({
-        label: `[装備${i + 1}: ¥${a.price}]`,
-        action: () => doBuyArmor(i),
+        label:    `[装備${i+1}: ¥${a.price}]`,
+        action:   () => doBuyArmor(i),
         disabled: p.money < a.price,
-        cls: 'amber',
+        cls:      'amber',
     }));
     btns.push({ label: '[戻る]', action: showMap });
     setTimeout(() => setCommands('どれを装備する？', btns), data.stock.length * 50 + 300);
@@ -1019,6 +1049,95 @@ async function doBuyArmor(idx) {
 // ============================================================
 //  ゲームオーバー / クリア
 // ============================================================
+// ============================================================
+//  所持金不足ゲームオーバー → EX到達済みならPVP保存選択
+// ============================================================
+async function gameOverPoor(player) {
+    clearLog();
+    document.getElementById('crt-wrap').classList.add('flash');
+    setTimeout(() => document.getElementById('crt-wrap').classList.remove('flash'), 300);
+
+    print('> ───────────────────────────', 'bad');
+    print('> DEAD — 無一文。', 'bad');
+    print('> お前は路地裏に倒れた。', 'bad');
+    print('> ───────────────────────────', 'bad');
+    printBlank();
+
+    const hasEX = (player.ex_depth_max || 0) > 0;
+
+    if (hasEX) {
+        print(`> EX${player.ex_depth_max} まで到達したキャラだ。`, 'cyan');
+        print('> PVP用に残すか？', 'cyan');
+        printBlank();
+        setCommands('このキャラをPVPに残す？', [
+            { label: '[残す]',    action: () => showPvpSlotSelect(player), cls: 'amber' },
+            { label: '[残さない]', action: () => doGameOverCleanup(player, null) },
+        ]);
+    } else {
+        await doGameOverCleanup(player, null);
+    }
+}
+
+/** PVPスロット選択画面 */
+async function showPvpSlotSelect(player) {
+    clearLog();
+    print('> PVPスロットを選択してください。', 'cyan');
+    printBlank();
+
+    const data = await saveApi('pvp_slot_list');
+    if (!data?.ok) { print('> [ERROR] スロット取得失敗。', 'bad'); return; }
+
+    data.slots.forEach(s => {
+        if (s.empty) {
+            print(`> ${s.slot.toUpperCase()}  [空]`, 'dim');
+        } else {
+            const name = s.updated_at ? s.updated_at.slice(0,10) : '';
+            print(`> ${s.slot.toUpperCase()}  EX${s.ex_depth_max||0}  ${name}`, 'prompt');
+        }
+    });
+    printBlank();
+
+    const btns = data.slots.map(s => ({
+        label:  s.slot.replace('pvp_', 'PVP-') + (s.empty ? ' [空]' : ' [上書き]'),
+        cls:    s.empty ? '' : 'danger',
+        action: async () => {
+            if (!s.empty) {
+                // 上書き確認
+                clearLog();
+                print(`> ${s.slot.toUpperCase()} のデータを上書きします。`, 'warn');
+                print('> よろしいですか？', 'warn');
+                printBlank();
+                setCommands('確認', [
+                    { label: '[上書きする]', cls: 'danger',
+                      action: () => doGameOverCleanup(player, s.slot) },
+                    { label: '[戻る]',
+                      action: () => showPvpSlotSelect(player) },
+                ]);
+            } else {
+                await doGameOverCleanup(player, s.slot);
+            }
+        },
+    }));
+    btns.push({ label: '[保存しない]', action: () => doGameOverCleanup(player, null) });
+    setCommands('どのスロットに保存？', btns);
+}
+
+/** STORYスロット消去 + 必要ならPVP保存 → タイトルへ */
+async function doGameOverCleanup(player, pvpSlot) {
+    disableCommands();
+    await saveApi('gameover_save_pvp', {
+        story_slot: G.activeSlot,
+        pvp_slot:   pvpSlot || '',
+    });
+    if (pvpSlot) {
+        print(`> [${pvpSlot.toUpperCase()}] に保存した。`, 'good');
+        printBlank();
+    }
+    print('> セーブデータを消去した。', 'dim');
+    printBlank();
+    setTimeout(async () => { await api('reset'); showTitle(); }, 1200);
+}
+
 function gameOver() {
     clearLog();
     document.getElementById('crt-wrap').classList.add('flash');
@@ -1037,6 +1156,22 @@ function gameOver() {
     }, lines.length * 80 + 300);
 }
 
+/** ST3クリア後 → EX突入演出 → gameClear（名前入力）へ */
+function enterEX(player) {
+    clearLog();
+    print('> ═══════════════════════════════════', 'good');
+    print('> 全ステージ制覇。', 'good');
+    print('> お前が路地裏の王だ。', 'good');
+    print('> ───────────────────────────', 'dim');
+    print('> ……しかし、路地裏に終わりはない。', 'warn');
+    print('> お前自身の影が立ちはだかる。', 'warn');
+    print('> ───────────────────────────', 'dim');
+    print('> EXステージ解放。', 'cyan');
+    print('> ボスはお前自身だ。', 'cyan');
+    printBlank();
+    setTimeout(() => gameClear(), 2000);
+}
+
 function gameClear() {
     clearLog();
     const p = G.player;
@@ -1050,11 +1185,80 @@ function gameClear() {
         `> 最終HP: ${p.hp}/${p.max_hp}`,
         `> 所持金: ¥${p.money.toLocaleString()}`,
         '> ═══════════════════════════════════',
+        '> ',
     ];
     lines.forEach((l, i) => print(l, 'good', i * 100));
+    setTimeout(() => showNameInput(), lines.length * 100 + 400);
+}
+
+/** クリア時キャラ名入力UI */
+function showNameInput() {
+    print('> このキャラクターに名前をつけろ。', 'cyan');
+    printBlank();
+
+    // CRTを薄くして入力を見やすくする
+    const canvas = document.getElementById('crt-canvas');
+    if (canvas) canvas.style.opacity = '0.15';
+
+    // cmdエリアにinputを埋め込む
+    const area  = document.getElementById('cmd-buttons');
+    const title = document.getElementById('cmd-title');
+    title.textContent = '名前を入力（最大16文字）';
+    area.innerHTML = '';
+
+    const input = document.createElement('input');
+    input.type        = 'text';
+    input.maxLength   = 16;
+    input.placeholder = '名無し';
+    input.className   = 'name-input';
+    input.autocomplete = 'off';
+    input.spellcheck  = false;
+
+    const btn = document.createElement('button');
+    btn.className   = 'cmd-btn amber';
+    btn.textContent = '[ 決定 ]';
+
+    const confirm = async () => {
+        const name = input.value.trim() || '名無し';
+        // CRT戻す
+        if (canvas) canvas.style.opacity = '';
+        await doNameConfirm(name);
+    };
+
+    btn.onclick       = confirm;
+    input.onkeydown   = (e) => { if (e.key === 'Enter') confirm(); };
+
+    area.appendChild(input);
+    area.appendChild(btn);
+
+    // スマホでは少し待ってからfocus（仮想KBが出るタイミングを確保）
+    setTimeout(() => input.focus(), 100);
+}
+
+async function doNameConfirm(name) {
+    disableCommands();
+    print(`> 名前: 【${name}】`, 'good');
+    printBlank();
+
+    // playerに名前・クリアフラグをセット → セーブ
+    const p = G.player;
+    p.name     = name;
+    p._cleared = true;
+    G.player   = p;
+
+    // PHPセッションにも反映（set_playerアクション）
+    await api('set_player', { player: p });
+    await autoSave();
+
+    print('> セーブした。', 'dim');
+    printBlank();
+
     setTimeout(() => {
-        setCommands('', [{ label: '[もう一度]', action: async () => { await api('reset'); showTitle(); } }]);
-    }, lines.length * 100 + 300);
+        setCommands('', [{
+            label:  '[もう一度]',
+            action: async () => { await api('reset'); showTitle(); },
+        }]);
+    }, 600);
 }
 
 // ============================================================
@@ -1068,7 +1272,7 @@ function initCRT() {
 
     function resize() {
         const area = logArea();
-        canvas.width = area.offsetWidth;
+        canvas.width  = area.offsetWidth;
         canvas.height = area.offsetHeight;
     }
     resize();
@@ -1087,7 +1291,7 @@ function initCRT() {
         }
 
         // ---- ビネット ----
-        const grad = ctx.createRadialGradient(w / 2, h / 2, h * 0.28, w / 2, h / 2, h * 0.85);
+        const grad = ctx.createRadialGradient(w/2, h/2, h*0.28, w/2, h/2, h*0.85);
         grad.addColorStop(0, 'rgba(0,0,0,0)');
         grad.addColorStop(1, 'rgba(0,0,0,0.62)');
         ctx.fillStyle = grad;
